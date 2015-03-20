@@ -1,0 +1,436 @@
+perf-config(1)
+==============
+
+NAME
+----
+perf-config - Get and set variables in configuration file.
+
+SYNOPSIS
+--------
+[verse]
+'perf config' -l | --list
+
+DESCRIPTION
+-----------
+You can manage variables in configuration file with this command.
+
+OPTIONS
+-------
+
+-l::
+--list::
+	Show current config variables with key and value into each sections.
+
+CONFIGURATION FILE
+------------------
+
+The Perf configuration file contain many variables which can make
+the perf command's action more effective, more skilful.
+The '$HOME/.perfconfig' file is used to store a per-user configuration.
+The file 'etc/perfconfig' or '$(sysconfdir)/perfconfig' can be used to
+store a system-wide default configuration.
+
+The variables are divided into sections. In each sections, the variables
+can contain a key and values.
+
+Syntax
+~~~~~~
+
+The file consists of sections and subkeys. A section begins with
+the name of the section in square brackets and continues until the next
+section begins. Each variable have to belong to some section, which means
+there must be a section header before the first setting of a variable, as below:
+Each variable are in the form 'subkey = value'.
+
+	[section]
+		subkey1 = value1
+		subkey2 = value2
+
+Subsection names are case sensitive and can contain any characters except
+newline (doublequote `"` and backslash have to be escaped as `\"` and `\\`,
+respectively).  Section headers cannot span multiple
+lines.  Variables may belong directly to a section or to a given subsection.
+
+Example
+~~~~~~~
+
+Given a $HOME/.perfconfig like this:
+
+#
+# This is the config file, and
+# a '#' and ';' character indicates a comment
+#
+
+[colors]
+	# Color variables
+	top = red, default
+	medium = green, default
+	normal = lightgray, default
+	selected = white, lightgray
+	code = blue, default
+	addr = magenta, default
+	root = white, blue
+
+[tui]
+	# Defaults if linked with libslang
+	report = on
+	annotate = on
+	top = on
+
+[buildid]
+	# Default, disable using /dev/null
+	dir = /root/.debug
+
+[annotate]
+	# Defaults
+	hide_src_code = false
+	use_offset = true
+	jump_arrows = true
+	show_nr_jumps = false
+
+[help]
+	# Format can be man, info, web or html
+	format = man
+	autocorrect = 0
+
+[ui]
+	show-headers= true
+
+[call-graph]
+	# fp (framepointer), dwarf
+	record-mode = fp
+	print-type = graph
+	order = caller
+	sort-key = function
+
+Variables
+~~~~~~~~~
+
+colors.*::
+	Color variables can appoint colors of the output which is printed out
+	from ‘report’, ‘top’,’annotate’ on tui.
+	Color variables is composed of foreground and background
+	and should have two values for them. If you want to set as colors
+	of your terminal, you should use ‘default’ for color value.
+        The kind of color which can be used as below.
+	red, green, default, black, blue, white, magenta, lightgray
+
+	colors.top::
+		‘top’ means a overhead percentage which has more than 5%.
+		And values of it’s variable specify colors of percentage.
+		Basic key values are foreground-color ’red’ and
+		background-color ’default’.
+	colors.medium::
+		‘medium’ means a overhead percentage which has more than 0.5%.
+		Default values are ’green’ and ’default’.
+	colors.normal::
+		‘normal’ means rest of overhead percentages
+		except ‘top’, ‘medium’, ‘selected’.
+		Default values are ’lightgray’ and ’default’.
+	colors.selected::
+		This appoint colors for forcussed one of the output list
+		from sub-commands (top,report,annotate).
+		Default values are ’white’ and ’lightgray’.
+	colors.code::
+		Colors for a arrow and lines on jumping by assembly code
+		such as ‘jns’,’jmp’,’jane’,etc. Default values are ‘blue’, ‘default’.
+	colors.addr::
+		This appoint colors for addresses from a sub-command ’annotate’.
+		Default values are ‘magenta’, ‘default’.
+	colors.root::
+		Colors for headers in the output of a sub-command ‘top’.
+		Default values are ‘white’, ‘blue’.
+
+tui.*::
+	A boolean value that controls launching TUI browser for each subcommand.
+	By default, TUI is enabled if perf detects a needed library during build
+	and this config option can control it.  Available subcommands are 'top',
+	'report' and 'annotate'.
+
+gtk.*::
+	A boolean value that controls launching GTK+2 GUI browser for
+	each subcommand.  By default, TUI is enabled if perf detects a
+	needed library during build and this config option can control
+	it.  Available subcommands are 'top', 'report' and 'annotate'.
+
+buildid.*::
+	buildid.dir::
+		Each executable or shared library built with each program is assigned
+		a unique identification as build-id. The option means a path where
+		build-id information can be saved.
+		The default is $HOME/.debug
+
+annotate.*::
+	There’re options which work with a ’annotate’ sub-command.
+	This Options is in control of addresses, jump function, source code
+	in lines of assembly code from a specific program.
+
+	annotate.hide_src_code::
+		If a program which is analyzed has source code of itself,
+		this option let ‘annotate’ print a list of assembly code with the source code.
+		For example, let’s see a part of a program. There’re four lines.
+		If this option is ‘false’, they can be printed
+		without source code from a program as below.
+
+		│        push   %rbp
+		│        mov    %rsp,%rbp
+		│        sub    $0x10,%rsp
+		│        mov    (%rdi),%rdx
+
+		But if this option is ‘true’, source code of the part
+		can be also printed as below.
+
+		│      struct rb_node *rb_next(const struct rb_node *node)
+		│      {
+		│        push   %rbp
+		│        mov    %rsp,%rbp
+		│        sub    $0x10,%rsp
+		│              struct rb_node *parent;
+		│
+		│              if (RB_EMPTY_NODE(node))
+		│        mov    (%rdi),%rdx
+		│              return n;
+
+        annotate.use_offset::
+		Basing on a first address of a loaded function, offset can be used.
+		Instead of using original addresses of assembly code,
+		addresses subtracted from a base address can be printed.
+		Let’s illustrate a example.
+		If a base address is 0XFFFFFFFF81624d50 as below,
+
+		ffffffff81624d50 <load0>
+
+		a address on assembly code has a specific absolute address as below
+
+		ffffffff816250b8:│  mov    0x8(%r14),%rdi
+
+		but if use_offset is ’true’, a address subtracted from a base address is printed.
+		The default is true.
+
+		             368:│  mov    0x8(%r14),%rdi
+
+	annotate.jump_arrows::
+		There’re jump instruction among assembly code.
+		Depending on a boolean value of jump_arrows,
+		arrows can be printed or not which represent
+		where do the instruction jump into as below.
+
+		│     ┌──jmp    1333
+		│     │  xchg   %ax,%ax
+		│1330:│  mov    %r15,%r10
+		│1333:└─→cmp    %r15,%r14
+
+		If jump_arrow is ‘false’, the arrows isn’t printed as below.
+
+		│      ↓ jmp    1333
+		│        xchg   %ax,%ax
+		│1330:   mov    %r15,%r10
+		│1333:   cmp    %r15,%r14
+
+        annotate.show_nr_jumps::
+		Let’s see a part of assembly code.
+
+		│1382:   movb   $0x1,-0x270(%rbp)
+
+		If use this, the number of branches branching to that address can be printed as below.
+
+		│1 1382:   movb   $0x1,-0x270(%rbp)
+
+help.*::
+	help.format:: = man
+		A format of manual page can be ‘man’, ‘info’, ‘web’ or ‘html’.
+		’man’ is default.
+	help.autocorrect:: = 0
+		Automatically correct and execute mistyped commands after
+		waiting for the given number of deciseconds (0.1 sec).
+		Let's see a example. If a mistyped sub-command is executed like 'perf mistyped-command'
+		and this option is 0, the output is as below.
+
+		perf: 'mistyped-command' is not a perf-command. See 'perf --help’.
+
+		Or if this option is more than 1, the output can be such as.
+
+		WARNING: You called a perf program named 'mistyped-command', which does not exist.
+		Continuing under the assumption that you meant 'with-kcore'
+		in 0.1 seconds automatically...
+		Usage: perf-with-kcore <perf sub-command> <perf.data directory> [<sub-command options> [ -- <workload>]]
+		<perf sub-command> can be record, script, report or inject
+		    or: perf-with-kcore fix_buildid_cache_permissions
+
+hist.*::
+	hist.percentage::
+		This option control a way to calcurate overhead of filtered entries -
+		that means the value of this option is effective only if there's a
+		filter (by comm, dso or symbol name).  Suppose a following example:
+
+		       Overhead  Symbols
+		       ........  .......
+		        33.33%     foo
+		        33.33%     bar
+		        33.33%     baz
+
+	       This is an original overhead and we'll filter out the first 'foo'
+	       entry.  The value of 'relative' would increase the overhead of 'bar'
+	       and 'baz' to 50.00% for each, while 'absolute' would show their
+	       current overhead (33.33%).
+
+ui.*::
+	ui.show-headers::
+		There’re columns as header ‘Overhead’, ‘Children’, ‘Shared Object’, ‘Symbol’, ’self’.
+		If this option is false, they are hiden.
+
+call-graph.*::
+	When sub-commands ‘top’ and ‘report’ work with -g/—-children
+	there’re options in control of call-graph.
+
+	call-graph.record-mode::
+		The record-mode can be ‘fp’ (frame pointer) and ‘dwarf’.
+		The value of 'dwarf' is effective only if perf detect needed library
+		(libunwind or a recent version of libdw).  Also it doesn't *require*
+		the dump-size option since it can use the default value of 8192 if
+		missing.
+
+	call-graph.dump-size::
+		The size of stack to dump in order to do post-unwinding.  Default is 8192 (byte).
+		When using dwarf into record-mode this option should have a value.
+
+	call-graph.print-type::
+		The print-types can be graph (graph absolute), fractal (graph relative), flat.
+		This option controls a way to show overhead for each callchain entry.
+		Suppose a following example.
+
+		Overhead  Symbols
+		........  .......
+		  40.00%  foo
+		      |
+		      --- foo
+		      |
+		      |--50.00%-- bar
+		      |           main
+		      |
+		      --50.00%-- baz
+		                 main
+
+		This output is a default format which is 'fractal'.  The 'foo' came
+		from 'bar' and 'baz' exactly half and half so 'fractal' shows 50.00%
+		for each (meaning that it assumes 100% total overhead of 'foo').
+
+		The 'graph' uses absolute overhead value of 'foo' as total so each of
+		'bar' and 'baz' callchain will have 20.00% of overhead.
+
+	call-graph.order::
+		This option controls print order of callchains.  The default is
+		'callee' which means callee is printed at top and then followed by its
+		caller and so on.  The 'caller' prints it in reverse order.
+
+	call-graph.sort-key::
+		The callchains are merged if they contain same information.
+		The sort-key option determines a way to compare the callchains.
+		A value of 'sort-key' can be 'function' or 'address’.
+		The default is ‘function’.
+
+	call-graph.threshold::
+		When there're many callchains it'd print tons of lines.  So perf omits
+		small callchains under a certain overhead (threshold) and this option
+		control the threashold.  Default is 0.5 (%).
+
+	call-graph.print-limit::
+		This is another way to control the number of callchains printed for a
+		single entry.  Default is 0 which means no limitation.
+
+report.*::
+	report.percent-limit::
+		This one is mostly same as call-graph.threshold but works for
+		histogram entries.  Entries have overhead lower than this percentage
+		will not be printed.  Default is 0.
+		If percent-limit is 70, the output which has percentages of
+		each overhead above 70% can be printed.
+
+	report.queue-size::
+		option to setup the maximum allocation size for session's
+		ordered events queue, if not set there's no default limit
+
+	report.children::
+		The children means that functions called from another function.
+		If the option is true, accumulate callchain of children and show total overhead.
+		For example, there’re three functions like below.
+
+		 void foo(void) {
+		   /* do something */
+		 }
+
+		 void bar(void) {
+		   /* do something */
+		   foo();
+		 }
+
+		 int main(void) {
+		   bar()
+		   return 0;
+		 }
+
+		Defaultly the output of sub-commands such as ’top’, ‘report’ and ‘annotate’
+		depend on a sort of overhead into each functions as below.
+
+		Overhead  Symbol
+		........  .....................
+		  60.00%  foo
+		          |
+		          --- foo
+		              bar
+		              main
+		              __libc_start_main
+
+		  40.00%  bar
+		          |
+		          --- bar
+		              main
+		              __libc_start_main
+
+		But if this option is true, the sort is changed into a sort of
+		overhead into each children group of each function  reciting all functions
+		from a first parent function till a last child function like below.
+		And it requires -g/--call-graph option enabled
+
+		Children      Self  Symbol
+		........  ........  ....................
+		 100.00%     0.00%  __libc_start_main
+		          |
+		          --- __libc_start_main
+
+		 100.00%     0.00%  main
+		          |
+		          --- main
+		              __libc_start_main
+
+		 100.00%    40.00%  bar
+		          |
+		          --- bar
+		              main
+		              __libc_start_main
+
+		  60.00%    60.00%  foo
+		          |
+		          --- foo
+		              bar
+		              main
+		              __libc_start_main
+
+top.*::
+	top.children::
+		This option means same as report.children.
+		So it is true, the output of ‘top’ is rearranged by each overhead into children group.
+
+man.*::
+	man.viewer::
+		This option can assign a manual tool with which a subcommand 'help' work.
+		it can used as 'man', 'woman', 'konqueror'. Default value is 'man'.
+
+pager.*::
+	pager.<subcommand>::
+		When a subcommand work as stdio instead of TUI, use pager with it.
+		Default value is 'true'.
+
+SEE ALSO
+--------
+linkperf:perf[1]
