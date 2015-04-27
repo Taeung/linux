@@ -18,6 +18,7 @@ static struct {
 	bool get_action;
 	bool set_action;
 	bool all_action;
+	bool remove_action;
 } params;
 
 struct list_head *sections;
@@ -31,6 +32,7 @@ static const struct option config_options[] = {
 	OPT_BOOLEAN('l', "list", &params.list_action, "show current config variables"),
 	OPT_BOOLEAN('a', "all", &params.all_action,
 		    "show current and all possible config variables with default values"),
+	OPT_BOOLEAN('r', "remove", &params.remove_action, "remove specific variables: [section.subkey ...]"),
 	OPT_END()
 };
 
@@ -150,19 +152,26 @@ static int set_config(const char *section_name, const char *subkey,
 
 	find_config(&section_node, &element_node, section_name, subkey);
 
-	/* if there isn't existent section, add a new section */
-	if (!section_node) {
-		section_node = init_config_section(section_name);
-		if (!section_node)
-			return -1;
-		list_add_tail(&section_node->list, sections);
+	if (!value) {
+		/* value == NULL means remove the variable */
+		if (section_node && element_node)
+			element_node->value = NULL;
+		else
+			pr_err("Error: Failed to find the variable.\n");
+	} else {
+		/* if there isn't existent section, add a new section */
+		if (!section_node) {
+			section_node = init_config_section(section_name);
+			if (!section_node)
+				return -1;
+			list_add_tail(&section_node->list, sections);
+		}
+		/* if nothing to replace, add a new element which contains key-value pair. */
+		if (!element_node)
+			return add_config_element(&section_node->element_head, subkey, value);
+		else
+			element_node->value = (char *)value;;
 	}
-	/* if nothing to replace, add a new element which contains key-value pair. */
-	if (!element_node)
-		return add_config_element(&section_node->element_head, subkey, value);
-	else
-		element_node->value = (char *)value;
-
 	return 0;
 }
 
@@ -371,7 +380,20 @@ int cmd_config(int argc, const char **argv, const char *prefix __maybe_unused)
 		ret = perf_config(show_config, NULL);
 	else if (params.all_action && argc == 0)
 		ret = show_all_config();
-	else {
+	else if (params.remove_action) {
+		for (i = 0; argv[i]; i++) {
+			value = strrchr(argv[i], '=');
+			if (value == NULL || value == argv[0])
+				ret = perf_configset_with_option(set_spec_config, argv[i]);
+			else {
+				pr_err("invalid key: %s\n", argv[i]);
+				return -1;
+			}
+			if (ret < 0)
+				goto out;
+		}
+	} else {
+
 		pr_warning("Error: Unknown argument.\n");
 		usage_with_options(config_usage, config_options);
 	}
