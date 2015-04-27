@@ -1,0 +1,65 @@
+[colors]
+	top = red, default
+	medium = green, default
+	normal = lightgray, default
+	selected = white, lightgray
+	code = blue, default
+	addr = magenta, default
+	root = white, blue
+
+[tui]
+	report = on
+	annotate = on
+	top = on
+
+[buildid]
+	dir = /root/.debug
+
+[annotate]
+	hide_src_code = false
+	use_offset = true
+	jump_arrows = true
+	show_nr_jumps = false
+
+[gtk]
+	annotate = off
+	report = off
+	top = off
+
+[pager]
+	cmd = true
+	report = true
+	annotate = true
+	report = true
+	top = true
+	diff = true
+
+[help]
+	format = man
+	autocorrect = 0
+
+[hist]
+	percentage = absolute
+
+[ui]
+	show-headers = true
+
+[call-graph]
+	record-mode = fp
+	dump-size =
+	print-type = fractal
+	order = caller
+	sort-key = function
+	threshold =
+	print-limit =
+
+[report]
+	children = false
+	percent-limit = 1
+	queue-size =
+
+[top]
+	children = false
+
+[man]
+	viewer = man

@@ -17,6 +17,7 @@ static struct {
 	bool list_action;
 	bool get_action;
 	bool set_action;
+	bool all_action;
 } params;
 
 struct list_head *sections;
@@ -28,6 +29,8 @@ static const char * const config_usage[] = {
 static const struct option config_options[] = {
 	OPT_GROUP("Action"),
 	OPT_BOOLEAN('l', "list", &params.list_action, "show current config variables"),
+	OPT_BOOLEAN('a', "all", &params.all_action,
+		    "show current and all possible config variables with default values"),
 	OPT_END()
 };
 
@@ -204,6 +207,49 @@ static int collect_config(const char *var, const char *value,
 	return add_config_element(&section_node->element_head, subkey, value);
 }
 
+static int merge_config(const char *var, const char *value,
+			void *cb __maybe_unused)
+{
+	const char *section_name, *subkey;
+	parse_key(var, &section_name, &subkey);
+	return set_config(section_name, subkey, value);
+}
+
+static int show_all_config(void)
+{
+	int ret = 0;
+	struct config_section *section_node;
+	struct config_element *element_node;
+	char *pwd, *all_config;
+
+	pwd = getenv("PWD");
+	all_config = strdup(mkpath("%s/util/PERFCONFIG-DEFAULT", pwd));
+
+	if (!all_config) {
+		pr_err("%s: strdup failed\n", __func__);
+		return -1;
+	}
+
+	sections = zalloc(sizeof(*sections));
+	if (!sections)
+		return -1;
+	INIT_LIST_HEAD(sections);
+
+	ret += perf_config_from_file(collect_config, all_config, NULL);
+	ret += perf_config(merge_config, NULL);
+
+	list_for_each_entry(section_node, sections, list) {
+		list_for_each_entry(element_node, &section_node->element_head, list) {
+			if (element_node->value)
+				printf("%s.%s = %s\n", section_node->name,
+				       element_node->subkey, element_node->value);
+			else
+				printf("%s.%s =\n", section_node->name, element_node->subkey);
+		}
+	}
+	return ret;
+}
+
 static int perf_configset_with_option(configset_fn_t fn, const char *var)
 {
 	int i, num_dot = 0, num_equals = 0;
@@ -305,6 +351,7 @@ int cmd_config(int argc, const char **argv, const char *prefix __maybe_unused)
 	if (!is_option && argc >= 0) {
 		switch (argc) {
 		case 0:
+			params.all_action = true;
 			break;
 		default:
 			for (i = 0; argv[i]; i++) {
@@ -322,6 +369,8 @@ int cmd_config(int argc, const char **argv, const char *prefix __maybe_unused)
 
 	if (params.list_action && argc == 0)
 		ret = perf_config(show_config, NULL);
+	else if (params.all_action && argc == 0)
+		ret = show_all_config();
 	else {
 		pr_warning("Error: Unknown argument.\n");
 		usage_with_options(config_usage, config_options);
