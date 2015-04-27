@@ -21,7 +21,7 @@
 char buildid_dir[MAXPATHLEN]; /* root dir for buildid, binary cache */
 
 static FILE *config_file;
-static const char *config_file_name;
+static char *config_file_name;
 static int config_linenr;
 static int config_file_eof;
 
@@ -420,12 +420,11 @@ static int perf_config_from_file(config_fn_t fn, const char *filename, void *dat
 	ret = -1;
 	if (f) {
 		config_file = f;
-		config_file_name = filename;
+		config_file_name = strdup(filename);
 		config_linenr = 1;
 		config_file_eof = 0;
 		ret = perf_parse_file(fn, data);
 		fclose(f);
-		config_file_name = NULL;
 	}
 	return ret;
 }
@@ -500,6 +499,31 @@ out:
 	if (found == 0)
 		return -1;
 	return ret;
+}
+
+int perf_configset_write_in_full(void)
+{
+	struct config_section *section_node;
+	struct config_element *element_node;
+	const char *first_line = "# this file is auto-generated.";
+	FILE *fp = fopen(config_file_name, "w");
+
+	if (!fp)
+		return -1;
+
+	fprintf(fp, "%s\n", first_line);
+	/* overwrite configvariables */
+	list_for_each_entry(section_node, sections, list) {
+		fprintf(fp, "[%s]\n", section_node->name);
+		list_for_each_entry(element_node, &section_node->element_head, list) {
+			if (element_node->value)
+				fprintf(fp, "\t%s = %s\n",
+					element_node->subkey, element_node->value);
+		}
+	}
+	fclose(fp);
+
+	return 0;
 }
 
 /*
