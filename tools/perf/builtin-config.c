@@ -21,10 +21,13 @@ static const char * const config_usage[] = {
 };
 
 #define ACTION_LIST (1<<0)
+#define ACTION_LIST_ALL (1<<1)
 
 static const struct option config_options[] = {
 	OPT_GROUP("Action"),
 	OPT_BIT('l', "list", &actions, "show current config variables", ACTION_LIST),
+	OPT_BIT('a', "list-all", &actions,
+		"show current and all possible config variables with default values", ACTION_LIST_ALL),
 	OPT_END()
 };
 
@@ -516,6 +519,45 @@ static int collect_current_config(const char *var, const char *value,
 			   normalize_value(section_name, name, value));
 }
 
+static int show_all_config(void)
+{
+	int i;
+	bool has_config;
+	struct config_section *section_node;
+	struct config_element *element_node;
+
+	for (i = 0; default_configsets[i].section_name != NULL; i++) {
+		find_config(&section_node, &element_node,
+			    default_configsets[i].section_name, default_configsets[i].name);
+
+		if (!element_node)
+			printf("%s.%s=%s\n", default_configsets[i].section_name,
+			       default_configsets[i].name, default_configsets[i].value);
+		else
+			printf("%s.%s=%s\n", section_node->name,
+			       element_node->name, element_node->value);
+	}
+
+	/* Print config variables the default configsets haven't */
+	list_for_each_entry(section_node, &sections, list) {
+		list_for_each_entry(element_node, &section_node->element_head, list) {
+			has_config = false;
+			for (i = 0; default_configsets[i].section_name != NULL; i++) {
+				if (!strcmp(default_configsets[i].section_name, section_node->name)
+				    && !strcmp(default_configsets[i].name, element_node->name)) {
+					has_config = true;
+					break;
+				}
+			}
+			if (!has_config)
+				printf("%s.%s=%s\n", section_node->name,
+				       element_node->name, element_node->value);
+		}
+	}
+
+	return 0;
+}
+
 static int perf_configset_with_option(configset_fn_t fn, const char *var, char *value)
 {
 	char *section_name;
@@ -582,6 +624,12 @@ int cmd_config(int argc, const char **argv, const char *prefix __maybe_unused)
 	case ACTION_LIST:
 		if (argc == 0)
 			ret = perf_config(show_config, NULL);
+		else
+			goto out_err;
+		goto out;
+	case ACTION_LIST_ALL:
+		if (argc == 0)
+			ret = show_all_config();
 		else
 			goto out_err;
 		goto out;
