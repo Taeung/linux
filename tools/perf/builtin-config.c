@@ -22,12 +22,14 @@ static const char * const config_usage[] = {
 
 #define ACTION_LIST (1<<0)
 #define ACTION_LIST_ALL (1<<1)
+#define ACTION_REMOVE (1<<2)
 
 static const struct option config_options[] = {
 	OPT_GROUP("Action"),
 	OPT_BIT('l', "list", &actions, "show current config variables", ACTION_LIST),
 	OPT_BIT('a', "list-all", &actions,
 		"show current and all possible config variables with default values", ACTION_LIST_ALL),
+	OPT_BIT('r', "remove", &actions, "remove specific variables: [section.name ...]", ACTION_REMOVE),
 	OPT_END()
 };
 
@@ -471,7 +473,15 @@ static int set_config(const char *section_name, const char *name, char *value)
 	struct config_element *element_node = NULL;
 
 	find_config(&section_node, &element_node, section_name, name);
-	if (value != NULL) {
+	if (!value) {
+		/* value == NULL means remove the variable */
+		if (section_node && element_node) {
+			if (!element_node->value)
+				free(element_node->value);
+			element_node->value = NULL;
+		} else
+			pr_err("Error: Failed to find the variable.\n");
+	} else {
 		value = normalize_value(section_name, name, value);
 
 		/* if there isn't existent section, add a new section */
@@ -490,6 +500,7 @@ static int set_config(const char *section_name, const char *name, char *value)
 			element_node->value = value;
 		}
 	}
+
 	return perf_configset_write_in_full();
 }
 
@@ -632,6 +643,18 @@ int cmd_config(int argc, const char **argv, const char *prefix __maybe_unused)
 			ret = show_all_config();
 		else
 			goto out_err;
+		goto out;
+	case ACTION_REMOVE:
+		for (i = 0; argv[i]; i++) {
+			if (value == NULL)
+				ret = perf_configset_with_option(set_config, argv[i], NULL);
+			else {
+				pr_err("invalid key: %s\n", argv[i]);
+				return -1;
+			}
+			if (ret < 0)
+				goto out;
+		}
 		goto out;
 	default:
 		if (!has_option && argc == 0) {
