@@ -8,6 +8,8 @@ perf-config - Get and set variables in a configuration file.
 SYNOPSIS
 --------
 [verse]
+'perf config' [section.name[=value] ...]
+or
 'perf config' -l | --list
 
 DESCRIPTION
