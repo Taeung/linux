@@ -11,6 +11,8 @@ SYNOPSIS
 'perf config' [section.name[=value] ...]
 or
 'perf config' -l | --list
+or
+'perf config' -a | --list-all
 
 DESCRIPTION
 -----------
@@ -22,6 +24,10 @@ OPTIONS
 -l::
 --list::
 	Show current config variables with key and value into each sections.
+
+-a::
+--list-all::
+	Show current and all possible config variables with default values.
 
 CONFIGURATION FILE
 ------------------
