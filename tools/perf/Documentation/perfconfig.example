@@ -1,29 +1,75 @@
 [colors]
-
-	# These were the old defaults
-	top = red, lightgray
-	medium = green, lightgray
-	normal = black, lightgray
-	selected = lightgray, magenta
-	code = blue, lightgray
-	addr = magenta, lightgray
+	# There are types of colors which are red,
+	# green, default, black, blue,
+	# white, magenta, lightgray
+	# The default is like below
+	top = red, default
+	medium = green, default
+	normal = lightgray, default
+	selected = white, lightgray
+	code = blue, default
+	addr = magenta, default
+	root = white, blue
 
 [tui]
-
 	# Defaults if linked with libslang
 	report = on
 	annotate = on
 	top = on
 
 [buildid]
-
 	# Default, disable using /dev/null
-	dir = /root/.debug
+	dir = ~/.debug
 
 [annotate]
-
 	# Defaults
 	hide_src_code = false
 	use_offset = true
 	jump_arrows = true
 	show_nr_jumps = false
+
+[gtk]
+	report = off
+	annotate = off
+	#top = off
+
+[pager]
+	# That a 'cmd' is true mean to use "pager or less"
+	cmd = true
+	report = false
+	diff = true
+
+[help]
+	# Format can be man, info, web or html
+	format = man
+	autocorrect = 0
+
+[hist]
+	# a value of 'percentage' can be 'relative' or 'absolute'
+	percentage = absolute
+
+[ui]
+	show-headers= true
+
+[call-graph]
+	# fp (framepointer), dwarf
+	record-mode = fp
+
+	# graph (graph absolute), flat, fractal (graph relative)
+	print-type = fractal
+
+	# caller, callee
+	order = caller
+
+	# function, address
+	sort-key = function
+
+[report]
+	percent-limit = 1
+	children = false
+
+[top]
+	children = true
+
+[man]
+	viewer = man
