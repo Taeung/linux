@@ -14,6 +14,8 @@
 #include "util/debug.h"
 
 static int actions;
+static bool use_system_config, use_global_config;
+static const char *config_file_name;
 
 static const char * const config_usage[] = {
 	"perf config [options] [section.name[=value] ...]",
@@ -25,6 +27,9 @@ static const char * const config_usage[] = {
 #define ACTION_REMOVE (1<<2)
 
 static const struct option config_options[] = {
+	OPT_GROUP("Config file location"),
+	OPT_BOOLEAN(0, "system", &use_system_config, "use system config file"),
+	OPT_BOOLEAN(0, "global", &use_global_config, "use global config file"),
 	OPT_GROUP("Action"),
 	OPT_BIT('l', "list", &actions, "show current config variables", ACTION_LIST),
 	OPT_BIT('a', "list-all", &actions,
@@ -508,7 +513,7 @@ static int set_config(const char *section_name, const char *name, char *value)
 		}
 	}
 
-	return perf_configset_write_in_full();
+	return perf_configset_write_in_full(config_file_name);
 }
 
 static int collect_current_config(const char *var, const char *value,
@@ -635,13 +640,24 @@ int cmd_config(int argc, const char **argv, const char *prefix __maybe_unused)
 	else
 		has_option = false;
 
+	if (use_system_config && use_global_config) {
+		pr_err("Error: only one config file at a time.");
+		usage_with_options(config_usage, config_options);
+		return -1;
+	} else if (use_global_config || (!use_system_config && !use_global_config)) {
+		config_file_name = perf_user_perfconfig(getenv("HOME"));
+		if (!config_file_name)
+			return -1;
+	} else if (use_system_config)
+		config_file_name = perf_etc_perfconfig();
+
 	INIT_LIST_HEAD(&sections);
-	perf_config(collect_current_config, NULL);
+	perf_config_from_file(collect_current_config, config_file_name, NULL);
 
 	switch (actions) {
 	case ACTION_LIST:
 		if (argc == 0)
-			ret = perf_config(show_config, NULL);
+			ret = perf_config_from_file(show_config, config_file_name, NULL);
 		else
 			goto out_err;
 		goto out;
@@ -665,7 +681,7 @@ int cmd_config(int argc, const char **argv, const char *prefix __maybe_unused)
 		goto out;
 	default:
 		if (!has_option && argc == 0) {
-			ret = perf_config(show_config, NULL);
+			ret = perf_config_from_file(show_config, config_file_name, NULL);
 			goto out;
 		} else if (argc > 0) {
 			for (i = 0; argv[i]; i++) {

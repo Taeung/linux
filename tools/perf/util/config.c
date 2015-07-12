@@ -21,7 +21,7 @@
 char buildid_dir[MAXPATHLEN]; /* root dir for buildid, binary cache */
 
 static FILE *config_file;
-static char *config_file_name;
+static const char *config_file_name;
 static int config_linenr;
 static int config_file_eof;
 
@@ -412,7 +412,7 @@ int perf_default_config(const char *var, const char *value,
 	return 0;
 }
 
-static int perf_config_from_file(config_fn_t fn, const char *filename, void *data)
+int perf_config_from_file(config_fn_t fn, const char *filename, void *data)
 {
 	int ret;
 	FILE *f = fopen(filename, "r");
@@ -420,16 +420,48 @@ static int perf_config_from_file(config_fn_t fn, const char *filename, void *dat
 	ret = -1;
 	if (f) {
 		config_file = f;
-		config_file_name = strdup(filename);
+		config_file_name = filename;
 		config_linenr = 1;
 		config_file_eof = 0;
 		ret = perf_parse_file(fn, data);
 		fclose(f);
+		config_file_name = NULL;
 	}
 	return ret;
 }
 
-static const char *perf_etc_perfconfig(void)
+const char *perf_user_perfconfig(const char *home)
+{
+	char *user_config = strdup(mkpath("%s/.perfconfig", home));
+	struct stat st;
+
+	if (user_config == NULL) {
+		warning("Not enough memory to process %s/.perfconfig, "
+			"ignoring it.", home);
+		goto out;
+	}
+
+	if (stat(user_config, &st) < 0)
+		goto out_free;
+
+	if (st.st_uid && (st.st_uid != geteuid())) {
+		warning("File %s not owned by current user or root, "
+			"ignoring it.", user_config);
+		goto out_free;
+	}
+
+	if (!st.st_size)
+		goto out_free;
+
+	return user_config;
+
+out_free:
+	free(user_config);
+out:
+	return NULL;
+}
+
+const char *perf_etc_perfconfig(void)
 {
 	static const char *system_wide;
 	if (!system_wide)
@@ -469,31 +501,11 @@ int perf_config(config_fn_t fn, void *data)
 
 	home = getenv("HOME");
 	if (perf_config_global() && home) {
-		char *user_config = strdup(mkpath("%s/.perfconfig", home));
-		struct stat st;
-
-		if (user_config == NULL) {
-			warning("Not enough memory to process %s/.perfconfig, "
-				"ignoring it.", home);
+		const char *user_config = perf_user_perfconfig(home);
+		if (user_config == NULL)
 			goto out;
-		}
-
-		if (stat(user_config, &st) < 0)
-			goto out_free;
-
-		if (st.st_uid && (st.st_uid != geteuid())) {
-			warning("File %s not owned by current user or root, "
-				"ignoring it.", user_config);
-			goto out_free;
-		}
-
-		if (!st.st_size)
-			goto out_free;
-
 		ret += perf_config_from_file(fn, user_config, data);
 		found += 1;
-out_free:
-		free(user_config);
 	}
 out:
 	if (found == 0)
@@ -501,12 +513,12 @@ out:
 	return ret;
 }
 
-int perf_configset_write_in_full(void)
+int perf_configset_write_in_full(const char *file_name)
 {
 	struct config_section *section_node;
 	struct config_element *element_node;
 	const char *first_line = "# this file is auto-generated.";
-	FILE *fp = fopen(config_file_name, "w");
+	FILE *fp = fopen(file_name, "w");
 
 	if (!fp)
 		return -1;

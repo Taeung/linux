@@ -8,13 +8,13 @@ perf-config - Get and set variables in a configuration file.
 SYNOPSIS
 --------
 [verse]
-'perf config' [section.name[=value] ...]
+'perf config' [<file-option>] [section.name[=value] ...]
 or
-'perf config' -l | --list
+'perf config' [<file-option>] -l | --list
 or
-'perf config' -a | --list-all
+'perf config' [<file-option>] -a | --list-all
 or
-'perf config' -r | --remove [section.name ...]
+'perf config' [<file-option>] -r | --remove [section.name ...]
 
 DESCRIPTION
 -----------
@@ -35,6 +35,14 @@ OPTIONS
 --remove::
 	Remove specific config variables.
 
+--global::
+	For writing and reading options: write to global
+	'$HOME/.perfconfig' file or read it.
+
+--system::
+	For writing and reading options: write to system-wide
+	'$(sysconfdir)/perfconfig' or read it.
+
 CONFIGURATION FILE
 ------------------
 
@@ -46,6 +54,10 @@ store a system-wide default configuration.
 
 The variables are divided into sections. In each section, the variables
 can are composed of a key and value.
+
+When reading or writing, the values are read from the system and  global
+configuration files by default, and options '--system' and '--global'
+can be used to tell the command to read from or write to only that location.
 
 Syntax
 ~~~~~~
