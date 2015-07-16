@@ -14,6 +14,8 @@
 #include "util/debug.h"
 
 static int actions;
+static bool use_system_config, use_global_config;
+static const char *config_file_name;
 
 static const char * const config_usage[] = {
 	"perf config [options]",
@@ -23,6 +25,9 @@ static const char * const config_usage[] = {
 #define ACTION_LIST (1<<0)
 
 static const struct option config_options[] = {
+	OPT_GROUP("Config file location"),
+	OPT_BOOLEAN(0, "system", &use_system_config, "use system config file"),
+	OPT_BOOLEAN(0, "global", &use_global_config, "use global config file"),
 	OPT_GROUP("Action"),
 	OPT_BIT('l', "list", &actions,
 		"show current config variables", ACTION_LIST),
@@ -53,16 +58,26 @@ int cmd_config(int argc, const char **argv, const char *prefix __maybe_unused)
 	else
 		has_option = false;
 
+	if (use_system_config && use_global_config) {
+		pr_err("Error: only one config file at a time\n");
+		usage_with_options(config_usage, config_options);
+		return -1;
+	} else if (use_global_config || (!use_system_config && !use_global_config))
+		config_file_name = mkpath("%s/.perfconfig", getenv("HOME"));
+	else if (use_system_config)
+		config_file_name = perf_etc_perfconfig();
+
 	switch (actions) {
 	case ACTION_LIST:
 		if (argc == 0)
-			ret = perf_config(show_config, NULL);
+			ret = perf_config_from_file(show_config, config_file_name, NULL);
 		else
 			goto out_err;
 		goto out;
 	default:
-		if (!has_option && argc == 0) {
-			ret = perf_config(show_config, NULL);
+		if ((!has_option || use_global_config || use_system_config)
+		    && argc == 0) {
+			ret = perf_config_from_file(show_config, config_file_name, NULL);
 			goto out;
 		} else
 			goto out_err;
