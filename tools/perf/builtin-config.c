@@ -23,7 +23,8 @@ static const char * const config_usage[] = {
 
 enum actions {
 	ACTION_LIST = 1,
-	ACTION_LIST_ALL
+	ACTION_LIST_ALL,
+	ACTION_REMOVE
 } actions;
 
 static const struct option config_options[] = {
@@ -36,6 +37,8 @@ static const struct option config_options[] = {
 	OPT_SET_UINT('a', "list-all", &actions,
 		     "show current and all possible config variables with default values",
 		     ACTION_LIST_ALL),
+	OPT_SET_UINT('r', "remove", &actions,
+		     "remove specific variables: [section.name ...]", ACTION_REMOVE),
 	OPT_END()
 };
 
@@ -495,7 +498,14 @@ static int set_config(const char *section_name, const char *name, char *value)
 	struct config_element *element_node = NULL;
 
 	find_config(&section_node, &element_node, section_name, name);
-	if (value != NULL) {
+	if (!value) {
+		/* value == NULL means remove the variable */
+		if (section_node && element_node) {
+			if (!element_node->value)
+				free(element_node->value);
+			element_node->value = NULL;
+		}
+	} else {
 		value = normalize_value(section_name, name, value);
 
 		/* if there isn't existent section, add a new section */
@@ -651,6 +661,18 @@ int cmd_config(int argc, const char **argv, const char *prefix __maybe_unused)
 	perf_config_from_file(collect_current_config, config_file_name, NULL);
 
 	switch (actions) {
+	case ACTION_REMOVE:
+		if (argc) {
+			for (i = 0; argv[i]; i++) {
+				ret = perf_configset_with_option(set_config, argv[i], NULL);
+				if (ret < 0)
+					goto out_err;
+			}
+		} else {
+			pr_err("Error: wrong number of arguments\n");
+			goto out_err;
+		}
+		break;
 	case ACTION_LIST_ALL:
 		if (argc == 0) {
 			ret = show_all_config();
