@@ -17,7 +17,7 @@ static bool use_system_config, use_user_config;
 static const char *config_file_name;
 
 static const char * const config_usage[] = {
-	"perf config [options] [section.name ...]",
+	"perf config [options] [section.name[=value] ...]",
 	NULL
 };
 
@@ -412,7 +412,8 @@ static void find_config(struct config_section **section_node,
 		*element_node = NULL;
 }
 
-static int show_spec_config(const char *section_name, const char *name)
+static int show_spec_config(const char *section_name, const char *name,
+			    char *value __maybe_unused)
 {
 	int i;
 	struct config_section *section_node = NULL;
@@ -488,6 +489,34 @@ static char *normalize_value(const char *section_name, const char *name, const c
 	return normalized;
 }
 
+static int set_config(const char *section_name, const char *name, char *value)
+{
+	struct config_section *section_node = NULL;
+	struct config_element *element_node = NULL;
+
+	find_config(&section_node, &element_node, section_name, name);
+	if (value != NULL) {
+		value = normalize_value(section_name, name, value);
+
+		/* if there isn't existent section, add a new section */
+		if (!section_node) {
+			section_node = init_section(section_name);
+			if (!section_node)
+				return -1;
+			list_add_tail(&section_node->list, &sections);
+		}
+		/* if nothing to replace, add a new element which contains key-value pair. */
+		if (!element_node) {
+			add_element(&section_node->element_head, name, value);
+		} else {
+			free(element_node->value);
+			element_node->value = value;
+		}
+	}
+
+	return perf_configset_write_in_full(config_file_name);
+}
+
 static int collect_current_config(const char *var, const char *value,
 			  void *cb __maybe_unused)
 {
@@ -557,7 +586,7 @@ static int show_all_config(void)
 	return 0;
 }
 
-static int perf_configset_with_option(configset_fn_t fn, const char *var)
+static int perf_configset_with_option(configset_fn_t fn, const char *var, char *value)
 {
 	char *section_name;
 	char *name;
@@ -585,8 +614,18 @@ static int perf_configset_with_option(configset_fn_t fn, const char *var)
 	section_name = strsep(&key, ".");
 	name = strsep(&key, ".");
 	free(key);
+	if (!value) {
+		/* do nothing */
+	} else if (!strcmp(value, "=")) {
+		pr_err("The config variable does not contain a value: %s.%s\n",
+		       section_name, name);
+		return -1;
+	} else {
+		value++;
+		name = strsep(&name, "=");
+	}
 
-	return fn(section_name, name);
+	return fn(section_name, name, value);
 
 	pr_err("invalid key: %s\n", var);
 	return -1;
@@ -625,7 +664,13 @@ int cmd_config(int argc, const char **argv, const char *prefix __maybe_unused)
 	default:
 		if (argc) {
 			for (i = 0; argv[i]; i++) {
-				ret = perf_configset_with_option(show_spec_config, argv[i]);
+				char *value = strchr(argv[i], '=');
+				if (value == NULL)
+					ret = perf_configset_with_option(show_spec_config,
+									 argv[i], value);
+				else
+					ret = perf_configset_with_option(set_config,
+									 argv[i], value);
 				if (ret < 0)
 					break;
 			}

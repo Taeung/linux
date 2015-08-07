@@ -34,7 +34,8 @@ struct config_section {
 
 struct list_head sections;
 
-typedef int (*configset_fn_t)(const char *, const char *);
+extern int perf_configset_write_in_full(const char *file_name);
+typedef int (*configset_fn_t)(const char *, const char *, char*);
 typedef int (*config_fn_t)(const char *, const char *, void *);
 extern int perf_default_config(const char *, const char *, void *);
 extern int perf_config(config_fn_t fn, void *);
