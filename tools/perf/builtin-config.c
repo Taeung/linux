@@ -17,7 +17,7 @@ static bool use_system_config, use_user_config;
 static const char *config_file_name;
 
 static const char * const config_usage[] = {
-	"perf config [options]",
+	"perf config [options] [section.name ...]",
 	NULL
 };
 
@@ -412,6 +412,37 @@ static void find_config(struct config_section **section_node,
 		*element_node = NULL;
 }
 
+static int show_spec_config(const char *section_name, const char *name)
+{
+	int i;
+	struct config_section *section_node = NULL;
+	struct config_element *element_node = NULL;
+	char key[BUFSIZ];
+
+	find_config(&section_node, &element_node, section_name, name);
+
+	if (section_node && element_node) {
+		scnprintf(key, sizeof(key), "%s.%s",
+			  section_node->name, element_node->name);
+		return show_config(key, element_node->value, NULL);
+	}
+
+	for (i = 0; default_configsets[i].section_name != NULL; i++) {
+		struct default_configset *config = &default_configsets[i];
+
+		if (!strcmp(config->section_name, section_name) &&
+		    !strcmp(config->name, name)) {
+			printf("%s.%s=%s (default)\n", config->section_name,
+			       config->name, config->value);
+			return 0;
+		}
+	}
+
+	pr_err("Error: %s.%s: failed to find the variable.\n", section_name, name);
+
+	return 0;
+}
+
 static char *normalize_value(const char *section_name, const char *name, const char *value)
 {
 	int i, ret = 0;
@@ -526,9 +557,44 @@ static int show_all_config(void)
 	return 0;
 }
 
+static int perf_configset_with_option(configset_fn_t fn, const char *var)
+{
+	char *section_name;
+	char *name;
+	const char *last_dot;
+	char *key = strdup(var);
+
+	if (!key) {
+		pr_err("%s: strdup failed\n", __func__);
+		return -1;
+	}
+	last_dot = strchr(key, '.');
+	/*
+	 * Since "key" actually contains the section name and the real
+	 * key name separated by a dot, we have to know where the dot is.
+	 */
+	if (last_dot == NULL || last_dot == key) {
+		pr_err("The config variable does not contain a section: %s\n", key);
+		return -1;
+	}
+	if (!last_dot[1]) {
+		pr_err("The config varible does not contain variable name: %s\n", key);
+		return -1;
+	}
+
+	section_name = strsep(&key, ".");
+	name = strsep(&key, ".");
+	free(key);
+
+	return fn(section_name, name);
+
+	pr_err("invalid key: %s\n", var);
+	return -1;
+}
+
 int cmd_config(int argc, const char **argv, const char *prefix __maybe_unused)
 {
-	int ret = 0;
+	int i, ret = 0;
 
 	argc = parse_options(argc, argv, config_options, config_usage,
 			     PARSE_OPT_STOP_AT_NON_OPTION);
@@ -552,10 +618,17 @@ int cmd_config(int argc, const char **argv, const char *prefix __maybe_unused)
 			break;
 		}
 	case ACTION_LIST:
-	default:
 		if (argc) {
 			pr_err("Error: unknown argument\n");
 			goto out_err;
+		}
+	default:
+		if (argc) {
+			for (i = 0; argv[i]; i++) {
+				ret = perf_configset_with_option(show_spec_config, argv[i]);
+				if (ret < 0)
+					break;
+			}
 		} else
 			ret = perf_config_from_file(show_config, config_file_name, NULL);
 	}
