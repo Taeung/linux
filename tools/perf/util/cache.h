@@ -33,6 +33,7 @@ struct config_section {
 };
 
 typedef int (*config_fn_t)(const char *, const char *, void *);
+typedef int (*configset_fn_t)(struct list_head *, const char *, const char *);
 extern int perf_default_config(const char *, const char *, void *);
 extern int perf_config(config_fn_t fn, void *);
 extern int perf_config_from_file(config_fn_t fn, const char *filename, void *data);
