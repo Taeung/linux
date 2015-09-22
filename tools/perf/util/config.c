@@ -506,6 +506,33 @@ out:
 	return ret;
 }
 
+int perf_configset_write_in_full(struct list_head *sections, const char *file_name)
+{
+	struct config_section *section;
+	struct config_element *element;
+	const char *first_line = "# this file is auto-generated.";
+	FILE *fp = fopen(file_name, "w");
+
+	if (!fp) {
+		pr_err("Error: %s: Can't open this file\n", file_name);
+		return -1;
+	}
+
+	fprintf(fp, "%s\n", first_line);
+	/* overwrite configvariables */
+	list_for_each_entry(section, sections, list) {
+		fprintf(fp, "[%s]\n", section->name);
+		list_for_each_entry(element, &section->element_head, list) {
+			if (element->value)
+				fprintf(fp, "\t%s = %s\n",
+					element->name, element->value);
+		}
+	}
+	fclose(fp);
+
+	return 0;
+}
+
 /*
  * Call this to report error for your variable that should not
  * get a boolean value (i.e. "[my] var" means "true").
