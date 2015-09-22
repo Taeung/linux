@@ -483,6 +483,48 @@ static int show_spec_config(struct list_head *sections,
 	return -1;
 }
 
+static char *normalize_value(const char *section_name, const char *name, const char *value)
+{
+	int i, ret = 0;
+	char key[BUFSIZ];
+	char *normalized;
+
+	scnprintf(key, sizeof(key), "%s.%s", section_name, name);
+	for (i = 0; default_configsets[i].section_name != NULL; i++) {
+		struct default_configset *config = &default_configsets[i];
+
+		if (!strcmp(config->section_name, section_name)
+		    && !strcmp(config->name, name)) {
+			if (!config->type)
+				ret = asprintf(&normalized, "%s", value);
+			else if (!strcmp(config->type, TYPE_BOOL))
+				ret = asprintf(&normalized, "%s",
+					       perf_config_bool(key, value) ? "true" : "false");
+			else if (!strcmp(config->type, TYPE_INT))
+				ret = asprintf(&normalized, "%d",
+					       perf_config_int(key, value));
+			else if (!strcmp(config->type, TYPE_LONG))
+				ret = asprintf(&normalized, "%"PRId64,
+					       perf_config_u64(key, value));
+			else if (!strcmp(config->type, TYPE_DIRNAME))
+				ret = asprintf(&normalized, "%s",
+					       perf_config_dirname(key, value));
+			if (ret < 0)
+				return NULL;
+
+			return normalized;
+		}
+	}
+
+	normalized = strdup(value);
+	if (!normalized) {
+		pr_err("%s: strdup failed\n", __func__);
+		return NULL;
+	}
+
+	return normalized;
+}
+
 static int set_config(struct list_head *sections, const char *config_file_name,
 		      const char *section_name, const char *name, char *value)
 {
@@ -491,11 +533,7 @@ static int set_config(struct list_head *sections, const char *config_file_name,
 
 	find_config(sections, &section, &element, section_name, name);
 	if (value != NULL) {
-		value = strdup(value);
-		if (!value) {
-			pr_err("%s: strdup failed\n", __func__);
-			return -1;
-		}
+		value = normalize_value(section_name, name, value);
 
 		/* if there isn't existent section, add a new section */
 		if (!section) {
