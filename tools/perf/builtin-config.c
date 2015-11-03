@@ -32,6 +32,24 @@ static struct option config_options[] = {
 	OPT_END()
 };
 
+static int compare_name(const char *name1, const char *name2)
+{
+	while(true) {
+		/* If two names have '-' or '_', ignore them. */
+		if ((*name1 == '-' || *name1 == '_')
+		    && (*name2 == '-' || *name2 == '_')) {
+			name1++,name2++;
+			continue;
+		}
+
+		if (*name1 && (*name1==*name2))
+			name1++,name2++;
+		else
+			break;
+	}
+	return *(const unsigned char*)name1-*(const unsigned char*)name2;
+}
+
 static struct config_section *find_section(struct list_head *sections,
 					   const char *section_name)
 {
@@ -50,7 +68,7 @@ static struct config_element *find_element(const char *name,
 	struct config_element *element;
 
 	list_for_each_entry(element, &section->element_head, list)
-		if (!strcmp(element->name, name))
+		if (!compare_name(element->name, name))
 			return element;
 
 	return NULL;
