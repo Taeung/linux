@@ -367,6 +367,12 @@ report.*::
 		If the option is true, accumulate callchain of children and show total overhead.
 		Please refer to the perf-report manual. The default is true.
 
+top.*::
+	top.children::
+		This option means same as report.children. So it is true,
+		the output of 'top' is rearranged by each overhead into children group.
+		The default is true.
+
 SEE ALSO
 --------
 linkperf:perf[1]
