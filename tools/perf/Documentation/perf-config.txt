@@ -166,6 +166,82 @@ buildid.*::
 		cache location, or to disable it altogether. If you want to disable it,
 		set buildid.dir to /dev/null. The default is $HOME/.debug
 
+annotate.*::
+	There're options which work with a 'annotate' sub-command.
+	These are in control of addresses, jump function, source code
+	in lines of assembly code from a specific program.
+
+	annotate.hide_src_code::
+		If a program which is analyzed has source code,
+		this option lets 'annotate' print a list of assembly code with the source code.
+		For example, let's see a part of a program. There're four lines.
+		If this option is 'true', they can be printed
+		without source code from a program as below.
+
+		│        push   %rbp
+		│        mov    %rsp,%rbp
+		│        sub    $0x10,%rsp
+		│        mov    (%rdi),%rdx
+
+		But if this option is 'false', source code of the part
+		can be also printed as below.
+
+		│      struct rb_node *rb_next(const struct rb_node *node)
+		│      {
+		│        push   %rbp
+		│        mov    %rsp,%rbp
+		│        sub    $0x10,%rsp
+		│              struct rb_node *parent;
+		│
+		│              if (RB_EMPTY_NODE(node))
+		│        mov    (%rdi),%rdx
+		│              return n;
+
+        annotate.use_offset::
+		Basing on a first address of a loaded function, offset can be used.
+		Instead of using original addresses of assembly code,
+		addresses subtracted from a base address can be printed.
+		Let's illustrate a example.
+		If a base address is 0XFFFFFFFF81624d50 as below,
+
+		ffffffff81624d50 <load0>
+
+		a address on assembly code has a specific absolute address as below
+
+		ffffffff816250b8:│  mov    0x8(%r14),%rdi
+
+		but if use_offset is 'true', a address subtracted from a base address is printed.
+		The default is true. This option is only applied to TUI.
+
+		             368:│  mov    0x8(%r14),%rdi
+
+	annotate.jump_arrows::
+		There can be jump instruction among assembly code.
+		Depending on a boolean value of jump_arrows,
+		arrows can be printed or not which represent
+		where do the instruction jump into as below.
+
+		│     ┌──jmp    1333
+		│     │  xchg   %ax,%ax
+		│1330:│  mov    %r15,%r10
+		│1333:└─→cmp    %r15,%r14
+
+		If jump_arrow is 'false', the arrows isn't printed as below.
+
+		│      ↓ jmp    1333
+		│        xchg   %ax,%ax
+		│1330:   mov    %r15,%r10
+		│1333:   cmp    %r15,%r14
+
+        annotate.show_nr_jumps::
+		Let's see a part of assembly code.
+
+		│1382:   movb   $0x1,-0x270(%rbp)
+
+		If use this, the number of branches branching to that address can be printed as below.
+
+		│1 1382:   movb   $0x1,-0x270(%rbp)
+
 SEE ALSO
 --------
 linkperf:perf[1]
