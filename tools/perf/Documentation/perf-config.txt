@@ -378,6 +378,11 @@ man.*::
 		This option can assign a manual tool with which a subcommand 'help' work.
 		it can used as 'man', 'woman', 'konqueror'. Default value is 'man'.
 
+pager.*::
+	pager.<subcommand>::
+		When a subcommand work as stdio instead of TUI, use pager with it.
+		Default value is 'true'.
+
 SEE ALSO
 --------
 linkperf:perf[1]
