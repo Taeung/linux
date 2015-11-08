@@ -350,6 +350,23 @@ call-graph.*::
 		This is another way to control the number of callchains printed for a
 		single entry.  Default is 0 which means no limitation.
 
+report.*::
+	report.percent-limit::
+		This one is mostly same as call-graph.threshold but works for
+		histogram entries.  Entries have overhead lower than this percentage
+		will not be printed.  Default is 0.
+		If percent-limit is 70, the output which has percentages of
+		each overhead above 70% can be printed.
+
+	report.queue-size::
+		option to setup the maximum allocation size for session's
+		ordered events queue, if not set there's no default limit.
+
+	report.children::
+		The children means that functions called from another function.
+		If the option is true, accumulate callchain of children and show total overhead.
+		Please refer to the perf-report manual. The default is true.
+
 SEE ALSO
 --------
 linkperf:perf[1]
