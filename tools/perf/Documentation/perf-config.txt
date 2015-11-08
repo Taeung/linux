@@ -280,6 +280,11 @@ hist.*::
 	       and 'baz' to 50.00% for each, while 'absolute' would show their
 	       current overhead (33.33%).
 
+ui.*::
+	ui.show-headers::
+		There're columns as header 'Overhead', 'Children', 'Shared Object', 'Symbol', 'self'.
+		If this option is false, they are hiden. This option is only applied to TUI.
+
 SEE ALSO
 --------
 linkperf:perf[1]
