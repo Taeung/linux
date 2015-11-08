@@ -383,6 +383,12 @@ pager.*::
 		When a subcommand work as stdio instead of TUI, use pager with it.
 		Default value is 'true'.
 
+kmem.*::
+	kmem.default::
+		This option can decide which allocator is analyzed between 'slab' and 'page'
+		without using options '--slab' and '--page'.
+		Default value is 'slab'.
+
 SEE ALSO
 --------
 linkperf:perf[1]
