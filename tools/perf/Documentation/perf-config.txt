@@ -242,6 +242,27 @@ annotate.*::
 
 		│1 1382:   movb   $0x1,-0x270(%rbp)
 
+help.*::
+	help.format:: = man
+		A format of manual page can be 'man', 'info', 'web' or 'html'.
+		'man' is default.
+	help.autocorrect:: = 0
+		Automatically correct and execute mistyped commands after
+		waiting for the given number of deciseconds (0.1 sec).
+		Let's see a example. If a mistyped sub-command is executed like 'perf mistyped-command'
+		and this option is 0, the output is as below.
+
+		perf: 'mistyped-command' is not a perf-command. See 'perf --help'.
+
+		Or if this option is more than 1, the output can be such as.
+
+		WARNING: You called a perf program named 'mistyped-command', which does not exist.
+		Continuing under the assumption that you meant 'with-kcore'
+		in 0.1 seconds automatically...
+		Usage: perf-with-kcore <perf sub-command> <perf.data directory> [<sub-command options> [ -- <workload>]]
+		<perf sub-command> can be record, script, report or inject
+		    or: perf-with-kcore fix_buildid_cache_permissions
+
 SEE ALSO
 --------
 linkperf:perf[1]
