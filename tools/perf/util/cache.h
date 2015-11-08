@@ -1,6 +1,7 @@
 #ifndef __PERF_CACHE_H
 #define __PERF_CACHE_H
 
+#include <linux/list.h>
 #include <stdbool.h>
 #include "util.h"
 #include "strbuf.h"
@@ -18,6 +19,18 @@
 #define DEFAULT_PERF_DIR_ENVIRONMENT ".perf"
 #define PERF_DEBUGFS_ENVIRONMENT "PERF_DEBUGFS_DIR"
 #define PERF_TRACEFS_ENVIRONMENT "PERF_TRACEFS_DIR"
+
+struct config_element {
+	char *name;
+	char *value;
+	struct list_head list;
+};
+
+struct config_section {
+	char *name;
+	struct list_head element_head;
+	struct list_head list;
+};
 
 extern const char *config_exclusive_filename;
 
