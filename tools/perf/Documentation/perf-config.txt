@@ -13,6 +13,8 @@ or
 'perf config' [<file-option>] -l | --list
 or
 'perf config' [<file-option>] -a | --list-all
+or
+'perf config' [<file-option>] -r | --remove [section.name ...]
 
 DESCRIPTION
 -----------
@@ -36,6 +38,10 @@ OPTIONS
 -a::
 --list-all::
 	Show current and all possible config variables with default values.
+
+-r::
+--remove::
+	Remove specific config variables.
 
 CONFIGURATION FILE
 ------------------

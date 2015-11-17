@@ -23,7 +23,8 @@ static const char * const config_usage[] = {
 enum actions {
 	ACTION_LIST = 1,
 	ACTION_LIST_ALL,
-	ACTION_SKEL
+	ACTION_SKEL,
+	ACTION_REMOVE
 } actions;
 
 static struct option config_options[] = {
@@ -35,6 +36,8 @@ static struct option config_options[] = {
 	OPT_SET_UINT('k', "skel", &actions,
 		     "produce an skeleton with the possible"
 		     " config variables", ACTION_SKEL),
+	OPT_SET_UINT('r', "remove", &actions,
+		     "remove specific variables: [section.name ...]", ACTION_REMOVE),
 	OPT_INCR('v', "verbose", &verbose, "Be more verbose"
 		 " (show config description)"),
 	OPT_BOOLEAN(0, "system", &use_system_config, "use system config file"),
@@ -487,7 +490,13 @@ static int set_config(struct list_head *sections, const char *config_file_name,
 	struct config_element *element = NULL;
 
 	find_config(sections, &section, &element, section_name, name);
-	if (value != NULL) {
+	if (!value) {
+		/* value == NULL means remove the variable */
+		if (section && element) {
+			free(element->value);
+			element->value = NULL;
+		}
+	} else {
 		value = normalize_value(section_name, name, value);
 
 		/* if there isn't existent section, add a new section */
@@ -638,6 +647,7 @@ int cmd_config(int argc, const char **argv, const char *prefix __maybe_unused)
 
 	set_option_flag(config_options, 'l', "list", PARSE_OPT_EXCLUSIVE);
 	set_option_flag(config_options, 'a', "list-all", PARSE_OPT_EXCLUSIVE);
+	set_option_flag(config_options, 'r', "remove", PARSE_OPT_EXCLUSIVE);
 
 	argc = parse_options(argc, argv, config_options, config_usage,
 			     PARSE_OPT_STOP_AT_NON_OPTION);
@@ -667,6 +677,29 @@ int cmd_config(int argc, const char **argv, const char *prefix __maybe_unused)
 	}
 
 	switch (actions) {
+	case ACTION_REMOVE:
+		if (argc) {
+			for (i = 0; argv[i]; i++) {
+				if (!use_system_config && !use_user_config) {
+					ret = perf_configset_with_option(set_config,
+									 &system_sections,
+									 system_config,
+									 argv[i], NULL);
+					ret = perf_configset_with_option(set_config,
+									 &user_sections,
+									 user_config,
+									 argv[i], NULL);
+				} else
+					ret = perf_configset_with_option(set_config, sections,
+									 config_exclusive_filename,
+									 argv[i], NULL);
+			}
+		} else {
+			pr_err("Error: Missing arguments\n");
+			parse_options_usage(config_usage, config_options, "r", 1);
+			return -1;
+		}
+		break;
 	case ACTION_SKEL:
 		if (argc)
 			parse_options_usage(config_usage, config_options, "k", 1);
