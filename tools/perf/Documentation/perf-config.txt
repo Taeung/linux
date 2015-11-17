@@ -15,6 +15,8 @@ or
 'perf config' [<file-option>] -a | --list-all
 or
 'perf config' [<file-option>] -k | --skel
+or
+'perf config' [<file-option>] -r | --remove [section.name ...]
 
 DESCRIPTION
 -----------
@@ -46,6 +48,10 @@ OPTIONS
 -v::
 --verbose::
 	Be more verbose. (show config description)
+
+-r::
+--remove::
+	Remove specific config variables.
 
 CONFIGURATION FILE
 ------------------
