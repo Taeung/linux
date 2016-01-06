@@ -144,6 +144,15 @@ colors.*::
 		Colors for headers in the output of a sub-commands (top, report).
 		Default values are 'white', 'blue'.
 
+tui.*, gtk.*::
+	Available subcommands are 'top', 'report' and 'annotate'.
+	These values are a boolean type, for example:
+
+		top = true
+
+	By setting value, TUI or GTK can be enabled or not. But it is needed
+	that perf detects the required library for them during build.
+
 SEE ALSO
 --------
 linkperf:perf[1]
