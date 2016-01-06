@@ -278,6 +278,10 @@ annotate.*::
 
 		99.93 │      mov    %eax,%eax
 
+help.*::
+	help.format::
+		A format of manual page can be 'man' that is default.
+
 SEE ALSO
 --------
 linkperf:perf[1]
