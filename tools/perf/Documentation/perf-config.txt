@@ -432,6 +432,14 @@ kmem.*::
 		This option decides which allocator is to be analyzed if neither
 		'--slab' nor '--page' option is used. Default is 'slab'.
 
+record.*::
+	record.build-id::
+		This option can be 'cache', 'no-cache' or 'skip'.
+		'cache' is to post-process data and save/update the binaries into
+		the build-id cache (in ~/.debug). This is the default.
+		But if this option is 'no-cache', not update the build-id cache.
+		'skip' mean that skip post-processing and do not update the cache.
+
 SEE ALSO
 --------
 linkperf:perf[1]
