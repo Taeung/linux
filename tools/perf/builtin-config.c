@@ -35,6 +35,8 @@ static struct option config_options[] = {
 	OPT_SET_UINT('k', "skel", &actions,
 		     "produce an skeleton with the possible"
 		     " config variables", ACTION_SKEL),
+	OPT_INCR('v', "verbose", &verbose, "Be more verbose"
+		 " (show config description)"),
 	OPT_BOOLEAN(0, "system", &use_system_config, "use system config file"),
 	OPT_BOOLEAN(0, "user", &use_user_config, "use user config file"),
 	OPT_END()
@@ -111,71 +113,117 @@ struct config_item {
 		const char *s;
 	} value;
 	enum config_type type;
+	const char *desc;
 };
 
-#define CONF_VAR(_sec, _name, _field, _val, _type) \
-	{ .section = _sec, .name = _name, .value._field = _val, .type = _type }
+#define CONF_VAR(_sec, _name, _field, _val, _type, _desc)			\
+	{ .section = _sec, .name = _name, .value._field = _val, .type = _type, .desc = _desc}
 
-#define CONF_BOOL_VAR(_idx, _sec, _name, _val) \
-	[CONFIG_##_idx] = CONF_VAR(_sec, _name, b, _val, CONFIG_TYPE_BOOL)
-#define CONF_INT_VAR(_idx, _sec, _name, _val) \
-	[CONFIG_##_idx] = CONF_VAR(_sec, _name, i, _val, CONFIG_TYPE_INT)
-#define CONF_LONG_VAR(_idx, _sec, _name, _val) \
-	[CONFIG_##_idx] = CONF_VAR(_sec, _name, l, _val, CONFIG_TYPE_LONG)
-#define CONF_U64_VAR(_idx, _sec, _name, _val) \
-	[CONFIG_##_idx] = CONF_VAR(_sec, _name, ll, _val, CONFIG_TYPE_U64)
-#define CONF_FLOAT_VAR(_idx, _sec, _name, _val) \
-	[CONFIG_##_idx] = CONF_VAR(_sec, _name, f, _val, CONFIG_TYPE_FLOAT)
-#define CONF_DOUBLE_VAR(_idx, _sec, _name, _val) \
-	[CONFIG_##_idx] = CONF_VAR(_sec, _name, d, _val, CONFIG_TYPE_DOUBLE)
-#define CONF_STR_VAR(_idx, _sec, _name, _val) \
-	[CONFIG_##_idx] = CONF_VAR(_sec, _name, s, _val, CONFIG_TYPE_STRING)
+#define CONF_BOOL_VAR(_idx, _sec, _name, _val, _desc) \
+	[CONFIG_##_idx] = CONF_VAR(_sec, _name, b, _val, CONFIG_TYPE_BOOL, _desc)
+#define CONF_INT_VAR(_idx, _sec, _name, _val, _desc) \
+	[CONFIG_##_idx] = CONF_VAR(_sec, _name, i, _val, CONFIG_TYPE_INT, _desc)
+#define CONF_LONG_VAR(_idx, _sec, _name, _val, _desc) \
+	[CONFIG_##_idx] = CONF_VAR(_sec, _name, l, _val, CONFIG_TYPE_LONG, _desc)
+#define CONF_U64_VAR(_idx, _sec, _name, _val, _desc) \
+	[CONFIG_##_idx] = CONF_VAR(_sec, _name, ll, _val, CONFIG_TYPE_U64, _desc)
+#define CONF_FLOAT_VAR(_idx, _sec, _name, _val, _desc) \
+	[CONFIG_##_idx] = CONF_VAR(_sec, _name, f, _val, CONFIG_TYPE_FLOAT, _desc)
+#define CONF_DOUBLE_VAR(_idx, _sec, _name, _val, _desc) \
+	[CONFIG_##_idx] = CONF_VAR(_sec, _name, d, _val, CONFIG_TYPE_DOUBLE, _desc)
+#define CONF_STR_VAR(_idx, _sec, _name, _val, _desc) \
+	[CONFIG_##_idx] = CONF_VAR(_sec, _name, s, _val, CONFIG_TYPE_STRING, _desc)
 #define CONF_END() { .type = CONFIG_END }
 
 struct config_item default_configs[] = {
-	CONF_STR_VAR(COLORS_TOP, "colors", "top", "red, default"),
-	CONF_STR_VAR(COLORS_MEDIUM, "colors", "medium", "green, default"),
-	CONF_STR_VAR(COLORS_NORMAL, "colors", "normal", "lightgray, default"),
-	CONF_STR_VAR(COLORS_SELECTED, "colors", "selected", "white, lightgray"),
-	CONF_STR_VAR(COLORS_JUMP_ARROWS, "colors", "jump_arrows", "blue, default"),
-	CONF_STR_VAR(COLORS_ADDR, "colors", "addr", "magenta, default"),
-	CONF_STR_VAR(COLORS_ROOT, "colors", "root", "white, blue"),
-	CONF_BOOL_VAR(TUI_REPORT, "tui", "report", true),
-	CONF_BOOL_VAR(TUI_ANNOTATE, "tui", "annotate", true),
-	CONF_BOOL_VAR(TUI_TOP, "tui", "top", true),
-	CONF_STR_VAR(BUILDID_DIR, "buildid", "dir", "~/.debug"),
-	CONF_BOOL_VAR(ANNOTATE_HIDE_SRC_CODE, "annotate", "hide_src_code", false),
-	CONF_BOOL_VAR(ANNOTATE_USE_OFFSET, "annotate", "use_offset", true),
-	CONF_BOOL_VAR(ANNOTATE_JUMP_ARROWS, "annotate", "jump_arrows", true),
-	CONF_BOOL_VAR(ANNOTATE_SHOW_NR_JUMPS, "annotate", "show_nr_jumps", false),
-	CONF_BOOL_VAR(ANNOTATE_SHOW_LINENR, "annotate", "show_linenr", false),
-	CONF_BOOL_VAR(ANNOTATE_SHOW_TOTAL_PERIOD, "annotate", "show_total_period", false),
-	CONF_BOOL_VAR(GTK_ANNOTATE, "gtk", "annotate", false),
-	CONF_BOOL_VAR(GTK_REPORT, "gtk", "report", false),
-	CONF_BOOL_VAR(GTK_TOP, "gtk", "top", false),
-	CONF_BOOL_VAR(PAGER_CMD, "pager", "cmd", true),
-	CONF_BOOL_VAR(PAGER_REPORT, "pager", "report", true),
-	CONF_BOOL_VAR(PAGER_ANNOTATE, "pager", "annotate", true),
-	CONF_BOOL_VAR(PAGER_TOP, "pager", "top", true),
-	CONF_BOOL_VAR(PAGER_DIFF, "pager", "diff", true),
-	CONF_STR_VAR(HELP_FORMAT, "help", "format", "man"),
-	CONF_INT_VAR(HELP_AUTOCORRECT, "help", "autocorrect", 0),
-	CONF_STR_VAR(HIST_PERCENTAGE, "hist", "percentage", "absolute"),
-	CONF_BOOL_VAR(UI_SHOW_HEADERS, "ui", "show-headers", true),
-	CONF_STR_VAR(CALL_GRAPH_RECORD_MODE, "call-graph", "record-mode", "fp"),
-	CONF_LONG_VAR(CALL_GRAPH_DUMP_SIZE, "call-graph", "dump-size", 8192),
-	CONF_STR_VAR(CALL_GRAPH_PRINT_TYPE, "call-graph", "print-type", "graph"),
-	CONF_STR_VAR(CALL_GRAPH_ORDER, "call-graph", "order", "callee"),
-	CONF_STR_VAR(CALL_GRAPH_SORT_KEY, "call-graph", "sort-key", "function"),
-	CONF_DOUBLE_VAR(CALL_GRAPH_THRESHOLD, "call-graph", "threshold", 0.5),
-	CONF_LONG_VAR(CALL_GRAPH_PRINT_LIMIT, "call-graph", "print-limit", 0),
-	CONF_BOOL_VAR(REPORT_GROUP, "report", "group", true),
-	CONF_BOOL_VAR(REPORT_CHILDREN, "report", "children", true),
-	CONF_FLOAT_VAR(REPORT_PERCENT_LIMIT, "report", "percent-limit", 0),
-	CONF_U64_VAR(REPORT_QUEUE_SIZE, "report", "queue-size", 0),
-	CONF_BOOL_VAR(TOP_CHILDREN, "top", "children", true),
-	CONF_STR_VAR(MAN_VIEWER, "man", "viewer", "man"),
-	CONF_STR_VAR(KMEM_DEFAULT, "kmem", "default", "slab"),
+	CONF_STR_VAR(COLORS_TOP, "colors", "top", "red, default",
+		     "A overhead percentage which is more than 5%"),
+	CONF_STR_VAR(COLORS_MEDIUM, "colors", "medium", "green, default",
+		     "A overhead percentage which has more than 0.5%"),
+	CONF_STR_VAR(COLORS_NORMAL, "colors", "normal", "lightgray, default",
+		     "The rest of overhead percentages"),
+	CONF_STR_VAR(COLORS_SELECTED, "colors", "selected", "white, lightgray",
+		     "The current entry in a list of entries on TUI"),
+	CONF_STR_VAR(COLORS_JUMP_ARROWS, "colors", "jump_arrows", "blue, default",
+		     "Arrows and lines in jumps on  assembly code listings"),
+	CONF_STR_VAR(COLORS_ADDR, "colors", "addr", "magenta, default",
+		     "Addresses from 'annotate"),
+	CONF_STR_VAR(COLORS_ROOT, "colors", "root", "white, blue",
+		     "Headers in the output of a sub-command 'top'"),
+	CONF_BOOL_VAR(TUI_REPORT, "tui", "report", true,
+		      "TUI can be enabled or not"),
+	CONF_BOOL_VAR(TUI_ANNOTATE, "tui", "annotate", true,
+		      "TUI can be enabled or not"),
+	CONF_BOOL_VAR(TUI_TOP, "tui", "top", true,
+		      "TUI can be enabled or not"),
+	CONF_STR_VAR(BUILDID_DIR, "buildid", "dir", "~/.debug",
+		     "The directory location of binaries, shared libraries,"
+		     " /proc/kallsyms and /proc/kcore files to be used"
+		     " at analysis time"),
+	CONF_BOOL_VAR(ANNOTATE_HIDE_SRC_CODE, "annotate", "hide_src_code", false,
+		      "Print a list of assembly code without the source code or not"),
+	CONF_BOOL_VAR(ANNOTATE_USE_OFFSET, "annotate", "use_offset", true,
+		      "Addresses subtracted from a base address can be printed"),
+	CONF_BOOL_VAR(ANNOTATE_JUMP_ARROWS, "annotate", "jump_arrows", true,
+		      "Arrows for jump instruction can be printed or not"),
+	CONF_BOOL_VAR(ANNOTATE_SHOW_NR_JUMPS, "annotate", "show_nr_jumps", false,
+		      "The number of branches branching to that address can be printed"),
+	CONF_BOOL_VAR(ANNOTATE_SHOW_LINENR, "annotate", "show_linenr", false,
+		      "Show line numbers"),
+	CONF_BOOL_VAR(ANNOTATE_SHOW_TOTAL_PERIOD, "annotate", "show_total_period", false,
+		      "Show a column with the sum of periods"),
+	CONF_BOOL_VAR(GTK_ANNOTATE, "gtk", "annotate", false,
+		      "GTK can be enabled or not"),
+	CONF_BOOL_VAR(GTK_REPORT, "gtk", "report", false,
+		      "GTK can be enabled or not"),
+	CONF_BOOL_VAR(GTK_TOP, "gtk", "top", false,
+		      "GTK can be enabled or not"),
+	CONF_BOOL_VAR(PAGER_CMD, "pager", "cmd", true,
+		      "As stdio instead of TUI"),
+	CONF_BOOL_VAR(PAGER_REPORT, "pager", "report", true,
+		      "As stdio instead of TUI"),
+	CONF_BOOL_VAR(PAGER_ANNOTATE, "pager", "annotate", true,
+		      "As stdio instead of TUI"),
+	CONF_BOOL_VAR(PAGER_TOP, "pager", "top", true,
+		      "As stdio instead of TUI"),
+	CONF_BOOL_VAR(PAGER_DIFF, "pager", "diff", true,
+		      "As stdio instead of TUI"),
+	CONF_STR_VAR(HELP_FORMAT, "help", "format", "man", "A format of manual page"),
+	CONF_INT_VAR(HELP_AUTOCORRECT, "help", "autocorrect", 0,
+		     "Automatically correct and execute mistyped commands after"
+		     " waiting for the given number of deciseconds"),
+	CONF_STR_VAR(HIST_PERCENTAGE, "hist", "percentage", "absolute",
+		     "Control a way to calcurate overhead of filtered entries"),
+	CONF_BOOL_VAR(UI_SHOW_HEADERS, "ui", "show-headers", true,
+		      "Show or hide columns as header on TUI"),
+	CONF_STR_VAR(CALL_GRAPH_RECORD_MODE, "call-graph", "record-mode", "fp",
+		     "The mode can be 'fp' (frame pointer) and 'dwarf'"),
+	CONF_LONG_VAR(CALL_GRAPH_DUMP_SIZE, "call-graph", "dump-size", 8192,
+		      "The size of stack to dump in order to do post-unwinding"),
+	CONF_STR_VAR(CALL_GRAPH_PRINT_TYPE, "call-graph", "print-type", "graph",
+		     "The type can be graph (graph absolute), fractal (graph relative), fla"),
+	CONF_STR_VAR(CALL_GRAPH_ORDER, "call-graph", "order", "callee",
+		     "Controls print order of callchains (callee or caller)"),
+	CONF_STR_VAR(CALL_GRAPH_SORT_KEY, "call-graph", "sort-key", "function",
+		     "It can be 'function' or 'address'"),
+	CONF_DOUBLE_VAR(CALL_GRAPH_THRESHOLD, "call-graph", "threshold", 0.5,
+			"Small callchains can be omitted under a certain overhead (threshold)"),
+	CONF_LONG_VAR(CALL_GRAPH_PRINT_LIMIT, "call-graph", "print-limit", 0,
+		      "Control the number of callchains printed for a single entry"),
+	CONF_BOOL_VAR(REPORT_GROUP, "report", "group", true,
+		      "Show event group information together"),
+	CONF_BOOL_VAR(REPORT_CHILDREN, "report", "children", true,
+		      "Accumulate callchain of children and show total overhead or not"),
+	CONF_FLOAT_VAR(REPORT_PERCENT_LIMIT, "report", "percent-limit", 0,
+		       "Entries have overhead lower than this percentage will not be printed"),
+	CONF_U64_VAR(REPORT_QUEUE_SIZE, "report", "queue-size", 0,
+		     "The maximum allocation size for session's ordered events queue"),
+	CONF_BOOL_VAR(TOP_CHILDREN, "top", "children", true,
+		      "Similar as report.children"),
+	CONF_STR_VAR(MAN_VIEWER, "man", "viewer", "man",
+		     "Select manual tools that work a sub-command 'help'"),
+	CONF_STR_VAR(KMEM_DEFAULT, "kmem", "default", "slab",
+		     "Which allocator is analyzed between 'slab' and 'page"),
 	CONF_END()
 };
 
@@ -297,6 +345,8 @@ static int show_skel_config(void)
 			section = config->section;
 			printf("\n[%s]\n", config->section);
 		}
+		if (verbose)
+			printf("\t# %s\n", config->desc);
 		printf("\t%s = %s\n", config->name, value);
 		free(value);
 	}
