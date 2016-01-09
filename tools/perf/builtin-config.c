@@ -22,7 +22,8 @@ static const char * const config_usage[] = {
 
 enum actions {
 	ACTION_LIST = 1,
-	ACTION_LIST_ALL
+	ACTION_LIST_ALL,
+	ACTION_SKEL
 } actions;
 
 static struct option config_options[] = {
@@ -31,6 +32,9 @@ static struct option config_options[] = {
 	OPT_SET_UINT('a', "list-all", &actions,
 		     "show current and all possible config"
 		     " variables with default values", ACTION_LIST_ALL),
+	OPT_SET_UINT('k', "skel", &actions,
+		     "produce an skeleton with the possible"
+		     " config variables", ACTION_SKEL),
 	OPT_BOOLEAN(0, "system", &use_system_config, "use system config file"),
 	OPT_BOOLEAN(0, "user", &use_user_config, "use user config file"),
 	OPT_END()
@@ -282,6 +286,24 @@ static char *get_value(struct config_item *config)
 	return value;
 }
 
+static int show_skel_config(void)
+{
+	const char *section = "";
+
+	for (int i = 0; default_configs[i].type != CONFIG_END; i++) {
+		struct config_item *config = &default_configs[i];
+		char *value = get_value(config);
+		if (strcmp(section, config->section) != 0) {
+			section = config->section;
+			printf("\n[%s]\n", config->section);
+		}
+		printf("\t%s = %s\n", config->name, value);
+		free(value);
+	}
+
+	return 0;
+}
+
 static int show_all_config(struct list_head *sections)
 {
 	int i;
@@ -419,6 +441,12 @@ int cmd_config(int argc, const char **argv, const char *prefix __maybe_unused)
 	perf_config(collect_current_config, &sections);
 
 	switch (actions) {
+	case ACTION_SKEL:
+		if (argc)
+			parse_options_usage(config_usage, config_options, "k", 1);
+		else
+			ret = show_skel_config();
+		break;
 	case ACTION_LIST_ALL:
 		if (argc == 0) {
 			ret = show_all_config(&sections);
