@@ -16,7 +16,7 @@
 static bool use_system_config, use_user_config;
 
 static const char * const config_usage[] = {
-	"perf config [<file-option>] [options] [section.name ...]",
+	"perf config [<file-option>] [options] [section.name[=value] ...]",
 	NULL
 };
 
@@ -397,7 +397,9 @@ static int show_all_config(struct list_head *sections)
 }
 
 static int show_spec_config(struct list_head *sections,
-			    const char *section_name, const char *name)
+			    const char *config_file_name __maybe_unused,
+			    const char *section_name, const char *name,
+			    char *value)
 {
 	int i;
 	struct config_section *section = NULL;
@@ -416,7 +418,7 @@ static int show_spec_config(struct list_head *sections,
 
 		if (!strcmp(config->section, section_name) &&
 		    !strcmp(config->name, name)) {
-			char *value = get_value(config);
+			value = get_value(config);
 
 			if (verbose)
 				printf("# %s\n", config->desc);
@@ -428,6 +430,39 @@ static int show_spec_config(struct list_head *sections,
 	}
 
 	return -1;
+}
+
+static int set_config(struct list_head *sections, const char *config_file_name,
+		      const char *section_name, const char *name, char *value)
+{
+	struct config_section *section = NULL;
+	struct config_element *element = NULL;
+
+	find_config(sections, &section, &element, section_name, name);
+	if (value != NULL) {
+		value = strdup(value);
+		if (!value) {
+			pr_err("%s: strdup failed\n", __func__);
+			return -1;
+		}
+
+		/* if there isn't existent section, add a new section */
+		if (!section) {
+			section = init_section(section_name);
+			if (!section)
+				return -1;
+			list_add_tail(&section->list, sections);
+		}
+		/* if nothing to replace, add a new element which contains key-value pair. */
+		if (!element) {
+			add_element(&section->element_head, name, value);
+		} else {
+			free(element->value);
+			element->value = value;
+		}
+	}
+
+	return perf_configset_write_in_full(sections, config_file_name);
 }
 
 static int collect_current_config(const char *var, const char *value,
@@ -479,8 +514,10 @@ out_err:
 	return ret;
 }
 
-static int perf_configset_with_option(configset_fn_t fn, struct list_head *sections,
-				      const char *var)
+static int perf_configset_with_option(configset_fn_t fn,
+				      struct list_head *sections,
+				      const char *config_file_name,
+				      const char *var, char *value)
 {
 	int ret = -1;
 	char *ptr, *key;
@@ -507,10 +544,24 @@ static int perf_configset_with_option(configset_fn_t fn, struct list_head *secti
 	}
 
 	section_name = strsep(&ptr, ".");
-	name = ptr;
-	fn(sections, section_name, name);
-	ret = 0;
+	name = strsep(&ptr, "=");
+	if (!value) {
+		/* do nothing */
+	} else if (!strcmp(value, "=")) {
+		pr_err("The config variable does not contain a value: %s.%s\n",
+		       section_name, name);
+		goto out_err;
+	} else {
+		value++;
+		name = strsep(&name, "=");
+		if (name[0] == '\0') {
+			pr_err("invalid key: %s\n", var);
+			goto out_err;
+		}
+	}
 
+	fn(sections, config_file_name, section_name, name, value);
+	ret = 0;
 out_err:
 	free(key);
 	return ret;
@@ -536,7 +587,9 @@ static int show_config(struct list_head *sections)
 int cmd_config(int argc, const char **argv, const char *prefix __maybe_unused)
 {
 	int i, ret = 0;
-	struct list_head sections;
+	struct list_head *sections;
+	struct list_head all_sections, user_sections, system_sections;
+	const char *system_config = perf_etc_perfconfig();
 	char *user_config = mkpath("%s/.perfconfig", getenv("HOME"));
 
 	set_option_flag(config_options, 'l', "list", PARSE_OPT_EXCLUSIVE);
@@ -552,14 +605,22 @@ int cmd_config(int argc, const char **argv, const char *prefix __maybe_unused)
 		return -1;
 	}
 
-	INIT_LIST_HEAD(&sections);
+	INIT_LIST_HEAD(&user_sections);
+	INIT_LIST_HEAD(&system_sections);
+	perf_config_from_file(collect_current_config, user_config,  &user_sections);
+	perf_config_from_file(collect_current_config, system_config,  &system_sections);
 
-	if (use_system_config)
-		config_exclusive_filename = perf_etc_perfconfig();
-	else if (use_user_config)
+	if (use_system_config) {
+		sections = &system_sections;
+		config_exclusive_filename = system_config;
+	} else if (use_user_config) {
+		sections = &user_sections;
 		config_exclusive_filename = user_config;
-
-	perf_config(collect_current_config, &sections);
+	} else {
+		sections = &all_sections;
+		INIT_LIST_HEAD(&all_sections);
+		perf_config(collect_current_config, &all_sections);
+	}
 
 	switch (actions) {
 	case ACTION_SKEL:
@@ -570,7 +631,7 @@ int cmd_config(int argc, const char **argv, const char *prefix __maybe_unused)
 		break;
 	case ACTION_LIST_ALL:
 		if (argc == 0) {
-			ret = show_all_config(&sections);
+			ret = show_all_config(sections);
 			break;
 		}
 	case ACTION_LIST:
@@ -581,7 +642,7 @@ int cmd_config(int argc, const char **argv, const char *prefix __maybe_unused)
 			else
 				parse_options_usage(config_usage, config_options, "l", 1);
 		} else {
-			ret = show_config(&sections);
+			ret = show_config(sections);
 			if (ret < 0) {
 				const char * config_filename = config_exclusive_filename;
 				if (!config_exclusive_filename)
@@ -592,11 +653,28 @@ int cmd_config(int argc, const char **argv, const char *prefix __maybe_unused)
 		}
 		break;
 	default:
-		if (argc)
-			for (i = 0; argv[i]; i++)
-				ret = perf_configset_with_option(show_spec_config, &sections,
-								 argv[i]);
-		else
+		if (argc) {
+			for (i = 0; argv[i]; i++) {
+				char *value = strchr(argv[i], '=');
+
+				if (value == NULL)
+					ret = perf_configset_with_option(show_spec_config,
+									 sections, NULL,
+									 argv[i], value);
+				else {
+					if (!use_system_config && !use_user_config)
+						ret = perf_configset_with_option(set_config,
+										 &user_sections,
+										 user_config,
+										 argv[i], value);
+					else
+						ret = perf_configset_with_option(set_config,
+										 sections,
+										 config_exclusive_filename,
+										 argv[i], value);
+				}
+			}
+		} else
 			usage_with_options(config_usage, config_options);
 	}
 
