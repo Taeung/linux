@@ -16,7 +16,7 @@
 static bool use_system_config, use_user_config;
 
 static const char * const config_usage[] = {
-	"perf config [<file-option>] [options]",
+	"perf config [<file-option>] [options] [section.name ...]",
 	NULL
 };
 
@@ -396,6 +396,40 @@ static int show_all_config(struct list_head *sections)
 	return 0;
 }
 
+static int show_spec_config(struct list_head *sections,
+			    const char *section_name, const char *name)
+{
+	int i;
+	struct config_section *section = NULL;
+	struct config_element *element = NULL;
+
+	find_config(sections, &section, &element, section_name, name);
+
+	if (section && element) {
+		printf("%s.%s=%s\n", section->name,
+		       element->name, element->value);
+		return 0;
+	}
+
+	for (i = 0; default_configs[i].type != CONFIG_END; i++) {
+		struct config_item *config = &default_configs[i];
+
+		if (!strcmp(config->section, section_name) &&
+		    !strcmp(config->name, name)) {
+			char *value = get_value(config);
+
+			if (verbose)
+				printf("# %s\n", config->desc);
+			printf("%s.%s=%s (default)\n", config->section,
+			       config->name, value);
+			free(value);
+			return 0;
+		}
+	}
+
+	return -1;
+}
+
 static int collect_current_config(const char *var, const char *value,
 				  void *spec_sections)
 {
@@ -445,6 +479,43 @@ out_err:
 	return ret;
 }
 
+static int perf_configset_with_option(configset_fn_t fn, struct list_head *sections,
+				      const char *var)
+{
+	int ret = -1;
+	char *ptr, *key;
+	const char *last_dot;
+	char *section_name, *name;
+
+	key = ptr = strdup(var);
+	if (!key) {
+		pr_err("%s: strdup failed\n", __func__);
+		return -1;
+	}
+	last_dot = strchr(key, '.');
+	/*
+	 * Since "key" actually contains the section name and the real
+	 * key name separated by a dot, we have to know where the dot is.
+	 */
+	if (last_dot == NULL || last_dot == key) {
+		pr_err("The config variable does not contain a section: %s\n", key);
+		goto out_err;
+	}
+	if (!last_dot[1]) {
+		pr_err("The config varible does not contain variable name: %s\n", key);
+		goto out_err;
+	}
+
+	section_name = strsep(&ptr, ".");
+	name = ptr;
+	fn(sections, section_name, name);
+	ret = 0;
+
+out_err:
+	free(key);
+	return ret;
+}
+
 static int show_config(struct list_head *sections)
 {
 	struct config_section *section;
@@ -464,7 +535,7 @@ static int show_config(struct list_head *sections)
 
 int cmd_config(int argc, const char **argv, const char *prefix __maybe_unused)
 {
-	int ret = 0;
+	int i, ret = 0;
 	struct list_head sections;
 	char *user_config = mkpath("%s/.perfconfig", getenv("HOME"));
 
@@ -502,7 +573,6 @@ int cmd_config(int argc, const char **argv, const char *prefix __maybe_unused)
 			ret = show_all_config(&sections);
 			break;
 		}
-		/* fall through */
 	case ACTION_LIST:
 		if (argc) {
 			pr_err("Error: takes no arguments\n");
@@ -522,7 +592,12 @@ int cmd_config(int argc, const char **argv, const char *prefix __maybe_unused)
 		}
 		break;
 	default:
-		usage_with_options(config_usage, config_options);
+		if (argc)
+			for (i = 0; argv[i]; i++)
+				ret = perf_configset_with_option(show_spec_config, &sections,
+								 argv[i]);
+		else
+			usage_with_options(config_usage, config_options);
 	}
 
 	return ret;
