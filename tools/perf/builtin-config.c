@@ -21,15 +21,158 @@ static const char * const config_usage[] = {
 };
 
 enum actions {
-	ACTION_LIST = 1
+	ACTION_LIST = 1,
+	ACTION_LIST_ALL
 } actions;
 
 static struct option config_options[] = {
 	OPT_SET_UINT('l', "list", &actions,
 		     "show current config variables", ACTION_LIST),
+	OPT_SET_UINT('a', "list-all", &actions,
+		     "show current and all possible config"
+		     " variables with default values", ACTION_LIST_ALL),
 	OPT_BOOLEAN(0, "system", &use_system_config, "use system config file"),
 	OPT_BOOLEAN(0, "user", &use_user_config, "use user config file"),
 	OPT_END()
+};
+
+enum config_idx {
+	CONFIG_COLORS_TOP,
+	CONFIG_COLORS_MEDIUM,
+	CONFIG_COLORS_NORMAL,
+	CONFIG_COLORS_SELECTED,
+	CONFIG_COLORS_JUMP_ARROWS,
+	CONFIG_COLORS_ADDR,
+	CONFIG_COLORS_ROOT,
+	CONFIG_TUI_REPORT,
+	CONFIG_TUI_ANNOTATE,
+	CONFIG_TUI_TOP,
+	CONFIG_BUILDID_DIR,
+	CONFIG_ANNOTATE_HIDE_SRC_CODE,
+	CONFIG_ANNOTATE_USE_OFFSET,
+	CONFIG_ANNOTATE_JUMP_ARROWS,
+	CONFIG_ANNOTATE_SHOW_NR_JUMPS,
+	CONFIG_ANNOTATE_SHOW_LINENR,
+	CONFIG_ANNOTATE_SHOW_TOTAL_PERIOD,
+	CONFIG_GTK_ANNOTATE,
+	CONFIG_GTK_REPORT,
+	CONFIG_GTK_TOP,
+	CONFIG_PAGER_CMD,
+	CONFIG_PAGER_REPORT,
+	CONFIG_PAGER_ANNOTATE,
+	CONFIG_PAGER_TOP,
+	CONFIG_PAGER_DIFF,
+	CONFIG_HELP_FORMAT,
+	CONFIG_HELP_AUTOCORRECT,
+	CONFIG_HIST_PERCENTAGE,
+	CONFIG_UI_SHOW_HEADERS,
+	CONFIG_CALL_GRAPH_RECORD_MODE,
+	CONFIG_CALL_GRAPH_DUMP_SIZE,
+	CONFIG_CALL_GRAPH_PRINT_TYPE,
+	CONFIG_CALL_GRAPH_ORDER,
+	CONFIG_CALL_GRAPH_SORT_KEY,
+	CONFIG_CALL_GRAPH_THRESHOLD,
+	CONFIG_CALL_GRAPH_PRINT_LIMIT,
+	CONFIG_REPORT_GROUP,
+	CONFIG_REPORT_CHILDREN,
+	CONFIG_REPORT_PERCENT_LIMIT,
+	CONFIG_REPORT_QUEUE_SIZE,
+	CONFIG_TOP_CHILDREN,
+	CONFIG_MAN_VIEWER,
+	CONFIG_KMEM_DEFAULT,
+};
+
+enum config_type {
+	CONFIG_TYPE_BOOL,
+	CONFIG_TYPE_INT,
+	CONFIG_TYPE_LONG,
+	CONFIG_TYPE_U64,
+	CONFIG_TYPE_FLOAT,
+	CONFIG_TYPE_DOUBLE,
+	CONFIG_TYPE_STRING,
+	/* special type */
+	CONFIG_END
+};
+
+struct config_item {
+	const char *section;
+	const char *name;
+	union {
+		bool b;
+		int i;
+		u32 l;
+		u64 ll;
+		float f;
+		double d;
+		const char *s;
+	} value;
+	enum config_type type;
+};
+
+#define CONF_VAR(_sec, _name, _field, _val, _type) \
+	{ .section = _sec, .name = _name, .value._field = _val, .type = _type }
+
+#define CONF_BOOL_VAR(_idx, _sec, _name, _val) \
+	[CONFIG_##_idx] = CONF_VAR(_sec, _name, b, _val, CONFIG_TYPE_BOOL)
+#define CONF_INT_VAR(_idx, _sec, _name, _val) \
+	[CONFIG_##_idx] = CONF_VAR(_sec, _name, i, _val, CONFIG_TYPE_INT)
+#define CONF_LONG_VAR(_idx, _sec, _name, _val) \
+	[CONFIG_##_idx] = CONF_VAR(_sec, _name, l, _val, CONFIG_TYPE_LONG)
+#define CONF_U64_VAR(_idx, _sec, _name, _val) \
+	[CONFIG_##_idx] = CONF_VAR(_sec, _name, ll, _val, CONFIG_TYPE_U64)
+#define CONF_FLOAT_VAR(_idx, _sec, _name, _val) \
+	[CONFIG_##_idx] = CONF_VAR(_sec, _name, f, _val, CONFIG_TYPE_FLOAT)
+#define CONF_DOUBLE_VAR(_idx, _sec, _name, _val) \
+	[CONFIG_##_idx] = CONF_VAR(_sec, _name, d, _val, CONFIG_TYPE_DOUBLE)
+#define CONF_STR_VAR(_idx, _sec, _name, _val) \
+	[CONFIG_##_idx] = CONF_VAR(_sec, _name, s, _val, CONFIG_TYPE_STRING)
+#define CONF_END() { .type = CONFIG_END }
+
+struct config_item default_configs[] = {
+	CONF_STR_VAR(COLORS_TOP, "colors", "top", "red, default"),
+	CONF_STR_VAR(COLORS_MEDIUM, "colors", "medium", "green, default"),
+	CONF_STR_VAR(COLORS_NORMAL, "colors", "normal", "lightgray, default"),
+	CONF_STR_VAR(COLORS_SELECTED, "colors", "selected", "white, lightgray"),
+	CONF_STR_VAR(COLORS_JUMP_ARROWS, "colors", "jump_arrows", "blue, default"),
+	CONF_STR_VAR(COLORS_ADDR, "colors", "addr", "magenta, default"),
+	CONF_STR_VAR(COLORS_ROOT, "colors", "root", "white, blue"),
+	CONF_BOOL_VAR(TUI_REPORT, "tui", "report", true),
+	CONF_BOOL_VAR(TUI_ANNOTATE, "tui", "annotate", true),
+	CONF_BOOL_VAR(TUI_TOP, "tui", "top", true),
+	CONF_STR_VAR(BUILDID_DIR, "buildid", "dir", "~/.debug"),
+	CONF_BOOL_VAR(ANNOTATE_HIDE_SRC_CODE, "annotate", "hide_src_code", false),
+	CONF_BOOL_VAR(ANNOTATE_USE_OFFSET, "annotate", "use_offset", true),
+	CONF_BOOL_VAR(ANNOTATE_JUMP_ARROWS, "annotate", "jump_arrows", true),
+	CONF_BOOL_VAR(ANNOTATE_SHOW_NR_JUMPS, "annotate", "show_nr_jumps", false),
+	CONF_BOOL_VAR(ANNOTATE_SHOW_LINENR, "annotate", "show_linenr", false),
+	CONF_BOOL_VAR(ANNOTATE_SHOW_TOTAL_PERIOD, "annotate", "show_total_period", false),
+	CONF_BOOL_VAR(GTK_ANNOTATE, "gtk", "annotate", false),
+	CONF_BOOL_VAR(GTK_REPORT, "gtk", "report", false),
+	CONF_BOOL_VAR(GTK_TOP, "gtk", "top", false),
+	CONF_BOOL_VAR(PAGER_CMD, "pager", "cmd", true),
+	CONF_BOOL_VAR(PAGER_REPORT, "pager", "report", true),
+	CONF_BOOL_VAR(PAGER_ANNOTATE, "pager", "annotate", true),
+	CONF_BOOL_VAR(PAGER_TOP, "pager", "top", true),
+	CONF_BOOL_VAR(PAGER_DIFF, "pager", "diff", true),
+	CONF_STR_VAR(HELP_FORMAT, "help", "format", "man"),
+	CONF_INT_VAR(HELP_AUTOCORRECT, "help", "autocorrect", 0),
+	CONF_STR_VAR(HIST_PERCENTAGE, "hist", "percentage", "absolute"),
+	CONF_BOOL_VAR(UI_SHOW_HEADERS, "ui", "show-headers", true),
+	CONF_STR_VAR(CALL_GRAPH_RECORD_MODE, "call-graph", "record-mode", "fp"),
+	CONF_LONG_VAR(CALL_GRAPH_DUMP_SIZE, "call-graph", "dump-size", 8192),
+	CONF_STR_VAR(CALL_GRAPH_PRINT_TYPE, "call-graph", "print-type", "graph"),
+	CONF_STR_VAR(CALL_GRAPH_ORDER, "call-graph", "order", "callee"),
+	CONF_STR_VAR(CALL_GRAPH_SORT_KEY, "call-graph", "sort-key", "function"),
+	CONF_DOUBLE_VAR(CALL_GRAPH_THRESHOLD, "call-graph", "threshold", 0.5),
+	CONF_LONG_VAR(CALL_GRAPH_PRINT_LIMIT, "call-graph", "print-limit", 0),
+	CONF_BOOL_VAR(REPORT_GROUP, "report", "group", true),
+	CONF_BOOL_VAR(REPORT_CHILDREN, "report", "children", true),
+	CONF_FLOAT_VAR(REPORT_PERCENT_LIMIT, "report", "percent-limit", 0),
+	CONF_U64_VAR(REPORT_QUEUE_SIZE, "report", "queue-size", 0),
+	CONF_BOOL_VAR(TOP_CHILDREN, "top", "children", true),
+	CONF_STR_VAR(MAN_VIEWER, "man", "viewer", "man"),
+	CONF_STR_VAR(KMEM_DEFAULT, "kmem", "default", "slab"),
+	CONF_END()
 };
 
 static struct config_section *find_section(struct list_head *sections,
@@ -112,6 +255,75 @@ static int add_element(struct list_head *head,
 	return 0;
 }
 
+static char *get_value(struct config_item *config)
+{
+	int ret = 0;
+	char *value;
+
+	if (config->type == CONFIG_TYPE_BOOL)
+		ret = asprintf(&value, "%s",
+			       config->value.b ? "true" : "false");
+	else if (config->type == CONFIG_TYPE_INT)
+		ret = asprintf(&value, "%d", config->value.i);
+	else if (config->type == CONFIG_TYPE_LONG)
+		ret = asprintf(&value, "%u", config->value.l);
+	else if (config->type == CONFIG_TYPE_U64)
+		ret = asprintf(&value, "%"PRId64, config->value.ll);
+	else if (config->type == CONFIG_TYPE_FLOAT)
+		ret = asprintf(&value, "%f", config->value.f);
+	else if (config->type == CONFIG_TYPE_DOUBLE)
+		ret = asprintf(&value, "%f", config->value.d);
+	else
+		ret = asprintf(&value, "%s", config->value.s);
+
+	if (ret < 0)
+		return NULL;
+
+	return value;
+}
+
+static int show_all_config(struct list_head *sections)
+{
+	int i;
+	bool has_config;
+	struct config_section *section;
+	struct config_element *element;
+
+	for (i = 0; default_configs[i].type != CONFIG_END; i++) {
+		struct config_item *config = &default_configs[i];
+		find_config(sections, &section, &element,
+			    config->section, config->name);
+
+		if (!element) {
+			char *value = get_value(config);
+
+			printf("%s.%s=%s\n", config->section, config->name, value);
+			free(value);
+		} else
+			printf("%s.%s=%s\n", section->name,
+			       element->name, element->value);
+	}
+
+	/* Print config variables the default configsets haven't */
+	list_for_each_entry(section, sections, list) {
+		list_for_each_entry(element, &section->element_head, list) {
+			has_config = false;
+			for (i = 0; default_configs[i].type != CONFIG_END; i++) {
+				if (!strcmp(default_configs[i].section, section->name) &&
+				    !strcmp(default_configs[i].name, element->name)) {
+					has_config = true;
+					break;
+				}
+			}
+			if (!has_config)
+				printf("%s.%s=%s\n", section->name,
+				       element->name, element->value);
+		}
+	}
+
+	return 0;
+}
+
 static int collect_current_config(const char *var, const char *value,
 				  void *spec_sections)
 {
@@ -184,6 +396,9 @@ int cmd_config(int argc, const char **argv, const char *prefix __maybe_unused)
 	struct list_head sections;
 	char *user_config = mkpath("%s/.perfconfig", getenv("HOME"));
 
+	set_option_flag(config_options, 'l', "list", PARSE_OPT_EXCLUSIVE);
+	set_option_flag(config_options, 'a', "list-all", PARSE_OPT_EXCLUSIVE);
+
 	argc = parse_options(argc, argv, config_options, config_usage,
 			     PARSE_OPT_STOP_AT_NON_OPTION);
 
@@ -204,10 +419,19 @@ int cmd_config(int argc, const char **argv, const char *prefix __maybe_unused)
 	perf_config(collect_current_config, &sections);
 
 	switch (actions) {
+	case ACTION_LIST_ALL:
+		if (argc == 0) {
+			ret = show_all_config(&sections);
+			break;
+		}
+		/* fall through */
 	case ACTION_LIST:
 		if (argc) {
 			pr_err("Error: takes no arguments\n");
-			parse_options_usage(config_usage, config_options, "l", 1);
+			if (actions == ACTION_LIST_ALL)
+				parse_options_usage(config_usage, config_options, "a", 1);
+			else
+				parse_options_usage(config_usage, config_options, "l", 1);
 		} else {
 			ret = show_config(&sections);
 			if (ret < 0) {
