@@ -88,13 +88,13 @@ enum trace_type {
  */
 struct syscall_trace_enter {
 	struct trace_entry	ent;
-	int			nr;
+	int			syscall_nr;
 	unsigned long		args[];
 };
 
 struct syscall_trace_exit {
 	struct trace_entry	ent;
-	int			nr;
+	int			syscall_nr;
 	long			ret;
 };
 
