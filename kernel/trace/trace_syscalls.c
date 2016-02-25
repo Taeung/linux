@@ -118,7 +118,7 @@ print_syscall_enter(struct trace_iterator *iter, int flags,
 	int i, syscall;
 
 	trace = (typeof(trace))ent;
-	syscall = trace->nr;
+	syscall = trace->__syscall_nr;
 	entry = syscall_nr_to_meta(syscall);
 
 	if (!entry)
@@ -164,7 +164,7 @@ print_syscall_exit(struct trace_iterator *iter, int flags,
 	struct syscall_metadata *entry;
 
 	trace = (typeof(trace))ent;
-	syscall = trace->nr;
+	syscall = trace->__syscall_nr;
 	entry = syscall_nr_to_meta(syscall);
 
 	if (!entry) {
@@ -261,7 +261,7 @@ static int __init syscall_enter_define_fields(struct trace_event_call *call)
 	int i;
 	int offset = offsetof(typeof(trace), args);
 
-	ret = trace_define_field(call, SYSCALL_FIELD(int, nr), FILTER_OTHER);
+	ret = trace_define_field(call, SYSCALL_FIELD(int, __syscall_nr), FILTER_OTHER);
 	if (ret)
 		return ret;
 
@@ -281,7 +281,7 @@ static int __init syscall_exit_define_fields(struct trace_event_call *call)
 	struct syscall_trace_exit trace;
 	int ret;
 
-	ret = trace_define_field(call, SYSCALL_FIELD(int, nr), FILTER_OTHER);
+	ret = trace_define_field(call, SYSCALL_FIELD(int, __syscall_nr), FILTER_OTHER);
 	if (ret)
 		return ret;
 
@@ -332,7 +332,7 @@ static void ftrace_syscall_enter(void *data, struct pt_regs *regs, long id)
 		return;
 
 	entry = ring_buffer_event_data(event);
-	entry->nr = syscall_nr;
+	entry->__syscall_nr = syscall_nr;
 	syscall_get_arguments(current, regs, 0, sys_data->nb_args, entry->args);
 
 	event_trigger_unlock_commit(trace_file, buffer, event, entry,
@@ -378,7 +378,7 @@ static void ftrace_syscall_exit(void *data, struct pt_regs *regs, long ret)
 		return;
 
 	entry = ring_buffer_event_data(event);
-	entry->nr = syscall_nr;
+	entry->__syscall_nr = syscall_nr;
 	entry->ret = syscall_get_return_value(current, regs);
 
 	event_trigger_unlock_commit(trace_file, buffer, event, entry,
@@ -579,7 +579,7 @@ static void perf_syscall_enter(void *ignore, struct pt_regs *regs, long id)
 	if (!rec)
 		return;
 
-	rec->nr = syscall_nr;
+	rec->__syscall_nr = syscall_nr;
 	syscall_get_arguments(current, regs, 0, sys_data->nb_args,
 			       (unsigned long *)&rec->args);
 	perf_trace_buf_submit(rec, size, rctx, 0, 1, regs, head, NULL);
@@ -652,7 +652,7 @@ static void perf_syscall_exit(void *ignore, struct pt_regs *regs, long ret)
 	if (!rec)
 		return;
 
-	rec->nr = syscall_nr;
+	rec->__syscall_nr = syscall_nr;
 	rec->ret = syscall_get_return_value(current, regs);
 	perf_trace_buf_submit(rec, size, rctx, 0, 1, regs, head, NULL);
 }
