@@ -911,7 +911,7 @@ opt:
 		if (opts->long_name == NULL)
 			continue;
 
-		if (!prefixcmp(opts->long_name, optstr))
+		if (!strcmp(opts->long_name, optstr))
 			print_option_help(opts, 0);
 		if (!prefixcmp("no-", optstr) &&
 		    !prefixcmp(opts->long_name, optstr + 3))
