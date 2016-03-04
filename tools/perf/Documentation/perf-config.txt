@@ -11,6 +11,8 @@ SYNOPSIS
 'perf config' [<file-option>] -l | --list
 or
 'perf config' [<file-option>] -a | --list-all
+or
+'perf config' [<file-option>] -k | --skel
 
 DESCRIPTION
 -----------
@@ -34,6 +36,10 @@ OPTIONS
 -a::
 --list-all::
 	Show current and all possible config variables with default values.
+
+-k::
+--skel::
+	Produce an skeleton with the possible config variables.
 
 CONFIGURATION FILE
 ------------------
