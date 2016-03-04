@@ -416,7 +416,7 @@ int perf_default_config(const char *var, const char *value,
 	return 0;
 }
 
-static int perf_config_from_file(config_fn_t fn, const char *filename, void *data)
+int perf_config_from_file(config_fn_t fn, const char *filename, void *data)
 {
 	int ret;
 	FILE *f = fopen(filename, "r");
@@ -504,6 +504,31 @@ out:
 	if (found == 0)
 		return -1;
 	return ret;
+}
+
+int perf_configset_write_in_full(struct list_head *sections, const char *file_name)
+{
+	struct config_section *section;
+	struct config_element *element;
+	const char *first_line = "# this file is auto-generated.";
+	FILE *fp = fopen(file_name, "w");
+
+	if (!fp)
+		return -1;
+
+	fprintf(fp, "%s\n", first_line);
+	/* overwrite configvariables */
+	list_for_each_entry(section, sections, list) {
+		fprintf(fp, "[%s]\n", section->name);
+		list_for_each_entry(element, &section->element_head, list) {
+			if (element->value)
+				fprintf(fp, "\t%s = %s\n",
+					element->name, element->value);
+		}
+	}
+	fclose(fp);
+
+	return 0;
 }
 
 /*
