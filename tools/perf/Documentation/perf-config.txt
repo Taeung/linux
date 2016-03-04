@@ -41,6 +41,10 @@ OPTIONS
 --skel::
 	Produce an skeleton with the possible config variables.
 
+-v::
+--verbose::
+	Be more verbose. (show config description)
+
 CONFIGURATION FILE
 ------------------
 
