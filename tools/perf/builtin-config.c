@@ -12,6 +12,7 @@
 #include <subcmd/parse-options.h>
 #include "util/util.h"
 #include "util/debug.h"
+#include "util/config.h"
 
 static bool use_system_config, use_user_config;
 
@@ -32,21 +33,40 @@ static struct option config_options[] = {
 	OPT_END()
 };
 
-static int show_config(const char *key, const char *value,
-		       void *cb __maybe_unused)
+static int show_config(struct perf_config_set *perf_configs)
 {
-	if (value)
-		printf("%s=%s\n", key, value);
-	else
-		printf("%s\n", key);
+	struct perf_config_item *config;
+	enum perf_config_kind pos = perf_configs->pos;
+	bool *file_usable = perf_configs->file_usable;
+	struct list_head *config_list = &perf_configs->config_list;
+
+	if (pos == BOTH) {
+		if (!file_usable[USER] && !file_usable[SYSTEM])
+			return -1;
+	} else if (!file_usable[pos])
+		return -1;
+
+	list_for_each_entry(config, config_list, list) {
+		char *value = config->value[pos];
+
+		if (value)
+			printf("%s.%s=%s\n", config->section,
+			       config->name, value);
+	}
 
 	return 0;
 }
 
 int cmd_config(int argc, const char **argv, const char *prefix __maybe_unused)
 {
+	/*
+	 * The perf_configs that contains not only default configs
+	 * but also key-value pairs from config files.
+	 * (i.e user wide ~/.perfconfig and system wide $(sysconfdir)/perfconfig)
+	 * This is designed to be used by several functions that handle config set.
+	 */
+	struct perf_config_set *perf_configs;
 	int ret = 0;
-	char *user_config = mkpath("%s/.perfconfig", getenv("HOME"));
 
 	argc = parse_options(argc, argv, config_options, config_usage,
 			     PARSE_OPT_STOP_AT_NON_OPTION);
@@ -58,10 +78,17 @@ int cmd_config(int argc, const char **argv, const char *prefix __maybe_unused)
 		return -1;
 	}
 
-	if (use_system_config)
-		config_exclusive_filename = perf_etc_perfconfig();
-	else if (use_user_config)
-		config_exclusive_filename = user_config;
+	perf_configs = perf_config_set__new();
+	if (!perf_configs)
+		return -1;
+
+	if (use_user_config)
+		perf_configs->pos = USER;
+	else if (use_system_config)
+		perf_configs->pos = SYSTEM;
+	else
+		perf_configs->pos = BOTH;
+
 
 	switch (actions) {
 	case ACTION_LIST:
@@ -69,19 +96,17 @@ int cmd_config(int argc, const char **argv, const char *prefix __maybe_unused)
 			pr_err("Error: takes no arguments\n");
 			parse_options_usage(config_usage, config_options, "l", 1);
 		} else {
-			ret = perf_config(show_config, NULL);
-			if (ret < 0) {
-				const char * config_filename = config_exclusive_filename;
-				if (!config_exclusive_filename)
-					config_filename = user_config;
+			ret = show_config(perf_configs);
+			if (ret < 0)
 				pr_err("Nothing configured, "
-				       "please check your %s \n", config_filename);
-			}
+				       "please check your %s \n",
+				       perf_configs->file_path[perf_configs->pos]);
 		}
 		break;
 	default:
 		usage_with_options(config_usage, config_options);
 	}
 
+	perf_config_set__delete(perf_configs);
 	return ret;
 }

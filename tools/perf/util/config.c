@@ -13,6 +13,7 @@
 #include <subcmd/exec-cmd.h>
 #include "util/hist.h"  /* perf_hist_config */
 #include "util/llvm-utils.h"   /* perf_llvm_config */
+#include "config.h"
 
 #define MAXNAME (256)
 
@@ -26,7 +27,53 @@ static const char *config_file_name;
 static int config_linenr;
 static int config_file_eof;
 
-const char *config_exclusive_filename;
+static const char *config_exclusive_filename;
+
+struct perf_config_item default_configs[] = {
+	CONF_STR_VAR(COLORS_TOP, "colors", "top", "red, default"),
+	CONF_STR_VAR(COLORS_MEDIUM, "colors", "medium", "green, default"),
+	CONF_STR_VAR(COLORS_NORMAL, "colors", "normal", "lightgray, default"),
+	CONF_STR_VAR(COLORS_SELECTED, "colors", "selected", "white, lightgray"),
+	CONF_STR_VAR(COLORS_JUMP_ARROWS, "colors", "jump_arrows", "blue, default"),
+	CONF_STR_VAR(COLORS_ADDR, "colors", "addr", "magenta, default"),
+	CONF_STR_VAR(COLORS_ROOT, "colors", "root", "white, blue"),
+	CONF_BOOL_VAR(TUI_REPORT, "tui", "report", true),
+	CONF_BOOL_VAR(TUI_ANNOTATE, "tui", "annotate", true),
+	CONF_BOOL_VAR(TUI_TOP, "tui", "top", true),
+	CONF_STR_VAR(BUILDID_DIR, "buildid", "dir", "~/.debug"),
+	CONF_BOOL_VAR(ANNOTATE_HIDE_SRC_CODE, "annotate", "hide_src_code", false),
+	CONF_BOOL_VAR(ANNOTATE_USE_OFFSET, "annotate", "use_offset", true),
+	CONF_BOOL_VAR(ANNOTATE_JUMP_ARROWS, "annotate", "jump_arrows", true),
+	CONF_BOOL_VAR(ANNOTATE_SHOW_NR_JUMPS, "annotate", "show_nr_jumps", false),
+	CONF_BOOL_VAR(ANNOTATE_SHOW_LINENR, "annotate", "show_linenr", false),
+	CONF_BOOL_VAR(ANNOTATE_SHOW_TOTAL_PERIOD, "annotate", "show_total_period", false),
+	CONF_BOOL_VAR(GTK_ANNOTATE, "gtk", "annotate", false),
+	CONF_BOOL_VAR(GTK_REPORT, "gtk", "report", false),
+	CONF_BOOL_VAR(GTK_TOP, "gtk", "top", false),
+	CONF_BOOL_VAR(PAGER_CMD, "pager", "cmd", true),
+	CONF_BOOL_VAR(PAGER_REPORT, "pager", "report", true),
+	CONF_BOOL_VAR(PAGER_ANNOTATE, "pager", "annotate", true),
+	CONF_BOOL_VAR(PAGER_TOP, "pager", "top", true),
+	CONF_BOOL_VAR(PAGER_DIFF, "pager", "diff", true),
+	CONF_STR_VAR(HELP_FORMAT, "help", "format", "man"),
+	CONF_INT_VAR(HELP_AUTOCORRECT, "help", "autocorrect", 0),
+	CONF_STR_VAR(HIST_PERCENTAGE, "hist", "percentage", "absolute"),
+	CONF_BOOL_VAR(UI_SHOW_HEADERS, "ui", "show-headers", true),
+	CONF_STR_VAR(CALL_GRAPH_RECORD_MODE, "call-graph", "record-mode", "fp"),
+	CONF_LONG_VAR(CALL_GRAPH_DUMP_SIZE, "call-graph", "dump-size", 8192),
+	CONF_STR_VAR(CALL_GRAPH_PRINT_TYPE, "call-graph", "print-type", "graph"),
+	CONF_STR_VAR(CALL_GRAPH_ORDER, "call-graph", "order", "callee"),
+	CONF_STR_VAR(CALL_GRAPH_SORT_KEY, "call-graph", "sort-key", "function"),
+	CONF_DOUBLE_VAR(CALL_GRAPH_THRESHOLD, "call-graph", "threshold", 0.5),
+	CONF_LONG_VAR(CALL_GRAPH_PRINT_LIMIT, "call-graph", "print-limit", 0),
+	CONF_BOOL_VAR(REPORT_GROUP, "report", "group", true),
+	CONF_BOOL_VAR(REPORT_CHILDREN, "report", "children", true),
+	CONF_FLOAT_VAR(REPORT_PERCENT_LIMIT, "report", "percent-limit", 0),
+	CONF_U64_VAR(REPORT_QUEUE_SIZE, "report", "queue-size", 0),
+	CONF_BOOL_VAR(TOP_CHILDREN, "top", "children", true),
+	CONF_STR_VAR(MAN_VIEWER, "man", "viewer", "man"),
+	CONF_STR_VAR(KMEM_DEFAULT, "kmem", "default", "slab"),
+};
 
 static int get_next_char(void)
 {
@@ -458,21 +505,10 @@ static int perf_config_global(void)
 	return !perf_env_bool("PERF_CONFIG_NOGLOBAL", 0);
 }
 
-int perf_config(config_fn_t fn, void *data)
+static char *perf_user_perfconfig(void)
 {
-	int ret = 0, found = 0;
-	const char *home = NULL;
+	const char *home = getenv("HOME");
 
-	/* Setting $PERF_CONFIG makes perf read _only_ the given config file. */
-	if (config_exclusive_filename)
-		return perf_config_from_file(fn, config_exclusive_filename, data);
-	if (perf_config_system() && !access(perf_etc_perfconfig(), R_OK)) {
-		ret += perf_config_from_file(fn, perf_etc_perfconfig(),
-					    data);
-		found += 1;
-	}
-
-	home = getenv("HOME");
 	if (perf_config_global() && home) {
 		char *user_config = strdup(mkpath("%s/.perfconfig", home));
 		struct stat st;
@@ -495,15 +531,215 @@ int perf_config(config_fn_t fn, void *data)
 		if (!st.st_size)
 			goto out_free;
 
-		ret += perf_config_from_file(fn, user_config, data);
-		found += 1;
+		return user_config;
+
 out_free:
 		free(user_config);
 	}
 out:
+	return NULL;
+}
+
+int perf_config(config_fn_t fn, void *data)
+{
+	int ret = 0, found = 0;
+	char *user_config;
+
+	/* Setting $PERF_CONFIG makes perf read _only_ the given config file. */
+	if (config_exclusive_filename)
+		return perf_config_from_file(fn, config_exclusive_filename, data);
+	if (perf_config_system() && !access(perf_etc_perfconfig(), R_OK)) {
+		ret += perf_config_from_file(fn, perf_etc_perfconfig(),
+					    data);
+		found += 1;
+	}
+
+	user_config = perf_user_perfconfig();
+	if (user_config) {
+		ret += perf_config_from_file(fn, user_config, data);
+		found += 1;
+		free(user_config);
+	}
+
 	if (found == 0)
 		return -1;
 	return ret;
+}
+
+static struct perf_config_item *find_config(struct list_head *config_list,
+				       const char *section,
+				       const char *name)
+{
+	struct perf_config_item *config;
+
+	list_for_each_entry(config, config_list, list) {
+		if (!strcmp(config->section, section) &&
+		    !strcmp(config->name, name))
+			return config;
+	}
+
+	return NULL;
+}
+
+static struct perf_config_item *add_config(struct list_head *config_list,
+					   const char *section,
+					   const char *name)
+{
+	struct perf_config_item *config = zalloc(sizeof(*config));
+
+	if (!config)
+		return NULL;
+
+	config->is_custom = true;
+	config->section = strdup(section);
+	if (!section)
+		goto out_err;
+
+	config->name = strdup(name);
+	if (!name) {
+		free((char *)config->section);
+		goto out_err;
+	}
+
+	list_add_tail(&config->list, config_list);
+	return config;
+
+out_err:
+	free(config);
+	pr_err("%s: strdup failed\n", __func__);
+	return NULL;
+}
+
+static int set_value(struct perf_config_item *config, enum perf_config_kind pos,
+		     const char *value)
+{
+	char *val = strdup(value);
+
+	if (!val)
+		return -1;
+
+	config->value[BOTH] = val;
+	config->value[pos] = val;
+	return 0;
+}
+
+static int collect_current_config(const char *var, const char *value,
+				  void *perf_config_set)
+{
+	int ret = 0;
+	char *ptr, *key;
+	char *section, *name;
+	struct perf_config_item *config;
+	struct perf_config_set *perf_configs = perf_config_set;
+	struct list_head *config_list = &perf_configs->config_list;
+
+	key = ptr = strdup(var);
+	if (!key) {
+		pr_err("%s: strdup failed\n", __func__);
+		return -1;
+	}
+
+	section = strsep(&ptr, ".");
+	name = ptr;
+	if (name == NULL || value == NULL) {
+		ret = -1;
+		goto out_err;
+	}
+
+	config = find_config(config_list, section, name);
+	if (!config) {
+		config = add_config(config_list, section, name);
+		if (!config) {
+			free((char *)config->section);
+			free((char *)config->name);
+			goto out_err;
+		}
+	}
+	ret = set_value(config, perf_configs->pos, value);
+
+out_err:
+	free(key);
+	return ret;
+}
+
+static struct perf_config_set *perf_config_set__init(struct perf_config_set *perf_configs)
+{
+	int i;
+	struct list_head *head = &perf_configs->config_list;
+
+	INIT_LIST_HEAD(&perf_configs->config_list);
+
+	for (i = 0; i != CONFIG_END; i++) {
+		struct perf_config_item *config = &default_configs[i];
+
+		list_add_tail(&config->list, head);
+	}
+	return perf_configs;
+}
+
+struct perf_config_set *perf_config_set__new(void)
+{
+	int ret;
+	struct perf_config_set *perf_configs = zalloc(sizeof(*perf_configs));
+	char *user_config = perf_user_perfconfig();
+	char *system_config = strdup(perf_etc_perfconfig());
+
+	if (!system_config)
+		goto out_err;
+
+	perf_config_set__init(perf_configs);
+
+	if (!access(system_config, R_OK)) {
+		perf_configs->pos = SYSTEM;
+		ret = perf_config_from_file(collect_current_config, system_config,
+					    perf_configs);
+		if (ret == 0)
+			perf_configs->file_usable[SYSTEM] = true;
+	}
+
+	if (user_config) {
+		perf_configs->pos = USER;
+		ret = perf_config_from_file(collect_current_config, user_config,
+				      perf_configs);
+		if (ret == 0)
+			perf_configs->file_usable[USER] = true;
+	} else {
+		user_config = strdup(mkpath("%s/.perfconfig", getenv("HOME")));
+		if (!user_config)
+			goto out_err;
+	}
+
+	/* user config file has order of priority */
+	perf_configs->file_path[BOTH] = user_config;
+	perf_configs->file_path[USER] = user_config;
+	perf_configs->file_path[SYSTEM] = system_config;
+
+	return perf_configs;
+
+out_err:
+	pr_err("%s: strdup failed\n", __func__);
+	free(perf_configs);
+	return NULL;
+}
+
+void perf_config_set__delete(struct perf_config_set *perf_configs)
+{
+	struct perf_config_item *pos, *item;
+
+	free(perf_configs->file_path[USER]);
+	free(perf_configs->file_path[SYSTEM]);
+
+	list_for_each_entry_safe(pos, item, &perf_configs->config_list, list) {
+		list_del(&pos->list);
+		if (pos->is_custom) {
+			free((char *)pos->section);
+			free((char *)pos->name);
+		}
+		free(pos->value[USER]);
+		free(pos->value[SYSTEM]);
+	}
+
+	free(perf_configs);
 }
 
 /*
