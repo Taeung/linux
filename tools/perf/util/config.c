@@ -26,7 +26,7 @@ static const char *config_file_name;
 static int config_linenr;
 static int config_file_eof;
 
-const char *config_exclusive_filename;
+static const char *config_exclusive_filename;
 
 static int get_next_char(void)
 {
@@ -416,7 +416,7 @@ int perf_default_config(const char *var, const char *value,
 	return 0;
 }
 
-static int perf_config_from_file(config_fn_t fn, const char *filename, void *data)
+int perf_config_from_file(config_fn_t fn, const char *filename, void *data)
 {
 	int ret;
 	FILE *f = fopen(filename, "r");
