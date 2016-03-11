@@ -13,6 +13,7 @@
 #include <subcmd/exec-cmd.h>
 #include "util/hist.h"  /* perf_hist_config */
 #include "util/llvm-utils.h"   /* perf_llvm_config */
+#include "config.h"
 
 #define MAXNAME (256)
 
@@ -26,7 +27,7 @@ static const char *config_file_name;
 static int config_linenr;
 static int config_file_eof;
 
-const char *config_exclusive_filename;
+static const char *config_exclusive_filename;
 
 static int get_next_char(void)
 {
@@ -434,7 +435,7 @@ static int perf_config_from_file(config_fn_t fn, const char *filename, void *dat
 	return ret;
 }
 
-const char *perf_etc_perfconfig(void)
+static const char *perf_etc_perfconfig(void)
 {
 	static const char *system_wide;
 	if (!system_wide)
@@ -458,21 +459,10 @@ static int perf_config_global(void)
 	return !perf_env_bool("PERF_CONFIG_NOGLOBAL", 0);
 }
 
-int perf_config(config_fn_t fn, void *data)
+static char *perf_user_perfconfig(void)
 {
-	int ret = 0, found = 0;
-	const char *home = NULL;
+	const char *home = getenv("HOME");
 
-	/* Setting $PERF_CONFIG makes perf read _only_ the given config file. */
-	if (config_exclusive_filename)
-		return perf_config_from_file(fn, config_exclusive_filename, data);
-	if (perf_config_system() && !access(perf_etc_perfconfig(), R_OK)) {
-		ret += perf_config_from_file(fn, perf_etc_perfconfig(),
-					    data);
-		found += 1;
-	}
-
-	home = getenv("HOME");
 	if (perf_config_global() && home) {
 		char *user_config = strdup(mkpath("%s/.perfconfig", home));
 		struct stat st;
@@ -495,15 +485,197 @@ int perf_config(config_fn_t fn, void *data)
 		if (!st.st_size)
 			goto out_free;
 
-		ret += perf_config_from_file(fn, user_config, data);
-		found += 1;
+		return user_config;
+
 out_free:
 		free(user_config);
 	}
 out:
+	return NULL;
+}
+
+int perf_config(config_fn_t fn, void *data)
+{
+	int ret = 0, found = 0;
+	char *user_config;
+
+	/* Setting $PERF_CONFIG makes perf read _only_ the given config file. */
+	if (config_exclusive_filename)
+		return perf_config_from_file(fn, config_exclusive_filename, data);
+	if (perf_config_system() && !access(perf_etc_perfconfig(), R_OK)) {
+		ret += perf_config_from_file(fn, perf_etc_perfconfig(),
+					    data);
+		found += 1;
+	}
+
+	user_config = perf_user_perfconfig();
+	if (user_config) {
+		ret += perf_config_from_file(fn, user_config, data);
+		found += 1;
+		free(user_config);
+	}
+
 	if (found == 0)
 		return -1;
 	return ret;
+}
+
+static struct perf_config_item *find_config(struct list_head *config_list,
+				       const char *section,
+				       const char *name)
+{
+	struct perf_config_item *config;
+
+	list_for_each_entry(config, config_list, list) {
+		if (!strcmp(config->section, section) &&
+		    !strcmp(config->name, name))
+			return config;
+	}
+
+	return NULL;
+}
+
+static struct perf_config_item *add_config(struct list_head *config_list,
+					   const char *section,
+					   const char *name)
+{
+	struct perf_config_item *config = zalloc(sizeof(*config));
+
+	if (!config)
+		return NULL;
+
+	config->section = strdup(section);
+	if (!section)
+		goto out_err;
+
+	config->name = strdup(name);
+	if (!name) {
+		free((char *)config->section);
+		goto out_err;
+	}
+
+	list_add_tail(&config->list, config_list);
+	return config;
+
+out_err:
+	free(config);
+	pr_err("%s: strdup failed\n", __func__);
+	return NULL;
+}
+
+static int set_value(struct perf_config_item *config, enum perf_config_kind pos,
+		     const char *value)
+{
+	char *val = strdup(value);
+
+	if (!val)
+		return -1;
+
+	config->value[BOTH] = val;
+	config->value[pos] = val;
+	return 0;
+}
+
+static int collect_current_config(const char *var, const char *value,
+				  void *perf_config_set)
+{
+	int ret = 0;
+	char *ptr, *key;
+	char *section, *name;
+	struct perf_config_item *config;
+	struct perf_config_set *perf_configs = perf_config_set;
+	struct list_head *config_list = &perf_configs->config_list;
+
+	key = ptr = strdup(var);
+	if (!key) {
+		pr_err("%s: strdup failed\n", __func__);
+		return -1;
+	}
+
+	section = strsep(&ptr, ".");
+	name = ptr;
+	if (name == NULL || value == NULL) {
+		ret = -1;
+		goto out_err;
+	}
+
+	config = find_config(config_list, section, name);
+	if (!config) {
+		config = add_config(config_list, section, name);
+		if (!config) {
+			free((char *)config->section);
+			free((char *)config->name);
+			goto out_err;
+		}
+	}
+	ret = set_value(config, perf_configs->pos, value);
+
+out_err:
+	free(key);
+	return ret;
+}
+
+struct perf_config_set *perf_config_set__new(void)
+{
+	int ret;
+	struct perf_config_set *perf_configs = zalloc(sizeof(*perf_configs));
+	char *user_config = perf_user_perfconfig();
+	char *system_config = strdup(perf_etc_perfconfig());
+
+	if (!system_config)
+		goto out_err;
+
+	INIT_LIST_HEAD(&perf_configs->config_list);
+
+	if (!access(system_config, R_OK)) {
+		perf_configs->pos = SYSTEM;
+		ret = perf_config_from_file(collect_current_config, system_config,
+					    perf_configs);
+		if (ret == 0)
+			perf_configs->file_usable[SYSTEM] = true;
+	}
+
+	if (user_config) {
+		perf_configs->pos = USER;
+		ret = perf_config_from_file(collect_current_config, user_config,
+				      perf_configs);
+		if (ret == 0)
+			perf_configs->file_usable[USER] = true;
+	} else {
+		user_config = strdup(mkpath("%s/.perfconfig", getenv("HOME")));
+		if (!user_config)
+			goto out_err;
+	}
+
+	/* user config file has order of priority */
+	perf_configs->file_path[BOTH] = user_config;
+	perf_configs->file_path[USER] = user_config;
+	perf_configs->file_path[SYSTEM] = system_config;
+
+	return perf_configs;
+
+out_err:
+	pr_err("%s: strdup failed\n", __func__);
+	free(perf_configs);
+	return NULL;
+}
+
+void perf_config_set__delete(struct perf_config_set *perf_configs)
+{
+	struct perf_config_item *pos, *item;
+
+	free(perf_configs->file_path[USER]);
+	free(perf_configs->file_path[SYSTEM]);
+
+	list_for_each_entry_safe(pos, item, &perf_configs->config_list, list) {
+		list_del(&pos->list);
+		free(pos->section);
+		free(pos->name);
+		free(pos->value[USER]);
+		free(pos->value[SYSTEM]);
+	}
+
+	free(perf_configs);
 }
 
 /*
