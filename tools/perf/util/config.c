@@ -29,6 +29,52 @@ static int config_file_eof;
 
 const char *config_exclusive_filename;
 
+struct perf_config_item default_configs[] = {
+	CONF_STR_VAR(COLORS_TOP, "colors", "top", "red, default"),
+	CONF_STR_VAR(COLORS_MEDIUM, "colors", "medium", "green, default"),
+	CONF_STR_VAR(COLORS_NORMAL, "colors", "normal", "lightgray, default"),
+	CONF_STR_VAR(COLORS_SELECTED, "colors", "selected", "white, lightgray"),
+	CONF_STR_VAR(COLORS_JUMP_ARROWS, "colors", "jump_arrows", "blue, default"),
+	CONF_STR_VAR(COLORS_ADDR, "colors", "addr", "magenta, default"),
+	CONF_STR_VAR(COLORS_ROOT, "colors", "root", "white, blue"),
+	CONF_BOOL_VAR(TUI_REPORT, "tui", "report", true),
+	CONF_BOOL_VAR(TUI_ANNOTATE, "tui", "annotate", true),
+	CONF_BOOL_VAR(TUI_TOP, "tui", "top", true),
+	CONF_STR_VAR(BUILDID_DIR, "buildid", "dir", "~/.debug"),
+	CONF_BOOL_VAR(ANNOTATE_HIDE_SRC_CODE, "annotate", "hide_src_code", false),
+	CONF_BOOL_VAR(ANNOTATE_USE_OFFSET, "annotate", "use_offset", true),
+	CONF_BOOL_VAR(ANNOTATE_JUMP_ARROWS, "annotate", "jump_arrows", true),
+	CONF_BOOL_VAR(ANNOTATE_SHOW_NR_JUMPS, "annotate", "show_nr_jumps", false),
+	CONF_BOOL_VAR(ANNOTATE_SHOW_LINENR, "annotate", "show_linenr", false),
+	CONF_BOOL_VAR(ANNOTATE_SHOW_TOTAL_PERIOD, "annotate", "show_total_period", false),
+	CONF_BOOL_VAR(GTK_ANNOTATE, "gtk", "annotate", false),
+	CONF_BOOL_VAR(GTK_REPORT, "gtk", "report", false),
+	CONF_BOOL_VAR(GTK_TOP, "gtk", "top", false),
+	CONF_BOOL_VAR(PAGER_CMD, "pager", "cmd", true),
+	CONF_BOOL_VAR(PAGER_REPORT, "pager", "report", true),
+	CONF_BOOL_VAR(PAGER_ANNOTATE, "pager", "annotate", true),
+	CONF_BOOL_VAR(PAGER_TOP, "pager", "top", true),
+	CONF_BOOL_VAR(PAGER_DIFF, "pager", "diff", true),
+	CONF_STR_VAR(HELP_FORMAT, "help", "format", "man"),
+	CONF_INT_VAR(HELP_AUTOCORRECT, "help", "autocorrect", 0),
+	CONF_STR_VAR(HIST_PERCENTAGE, "hist", "percentage", "absolute"),
+	CONF_BOOL_VAR(UI_SHOW_HEADERS, "ui", "show-headers", true),
+	CONF_STR_VAR(CALL_GRAPH_RECORD_MODE, "call-graph", "record-mode", "fp"),
+	CONF_LONG_VAR(CALL_GRAPH_DUMP_SIZE, "call-graph", "dump-size", 8192),
+	CONF_STR_VAR(CALL_GRAPH_PRINT_TYPE, "call-graph", "print-type", "graph"),
+	CONF_STR_VAR(CALL_GRAPH_ORDER, "call-graph", "order", "callee"),
+	CONF_STR_VAR(CALL_GRAPH_SORT_KEY, "call-graph", "sort-key", "function"),
+	CONF_DOUBLE_VAR(CALL_GRAPH_THRESHOLD, "call-graph", "threshold", 0.5),
+	CONF_LONG_VAR(CALL_GRAPH_PRINT_LIMIT, "call-graph", "print-limit", 0),
+	CONF_BOOL_VAR(REPORT_GROUP, "report", "group", true),
+	CONF_BOOL_VAR(REPORT_CHILDREN, "report", "children", true),
+	CONF_FLOAT_VAR(REPORT_PERCENT_LIMIT, "report", "percent-limit", 0),
+	CONF_U64_VAR(REPORT_QUEUE_SIZE, "report", "queue-size", 0),
+	CONF_BOOL_VAR(TOP_CHILDREN, "top", "children", true),
+	CONF_STR_VAR(MAN_VIEWER, "man", "viewer", "man"),
+	CONF_STR_VAR(KMEM_DEFAULT, "kmem", "default", "slab"),
+};
+
 static int get_next_char(void)
 {
 	int c;
@@ -587,8 +633,8 @@ static int collect_config(const char *var, const char *value,
 	if (!config) {
 		config = add_config(config_list, section, name);
 		if (!config) {
-			free(config->section);
-			free(config->name);
+			free((char *)config->section);
+			free((char *)config->name);
 			ret = -1;
 			goto out_free;
 		}
@@ -620,8 +666,8 @@ void perf_config_set__delete(struct perf_config_set *perf_configs)
 
 	list_for_each_entry_safe(pos, item, &perf_configs->config_list, list) {
 		list_del(&pos->list);
-		free(pos->section);
-		free(pos->name);
+		free((char *)pos->section);
+		free((char *)pos->name);
 		free(pos->value);
 		free(pos);
 	}
