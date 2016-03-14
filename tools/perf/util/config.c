@@ -458,21 +458,10 @@ static int perf_config_global(void)
 	return !perf_env_bool("PERF_CONFIG_NOGLOBAL", 0);
 }
 
-int perf_config(config_fn_t fn, void *data)
+char *perf_user_perfconfig(void)
 {
-	int ret = 0, found = 0;
-	const char *home = NULL;
+	const char *home = getenv("HOME");
 
-	/* Setting $PERF_CONFIG makes perf read _only_ the given config file. */
-	if (config_exclusive_filename)
-		return perf_config_from_file(fn, config_exclusive_filename, data);
-	if (perf_config_system() && !access(perf_etc_perfconfig(), R_OK)) {
-		ret += perf_config_from_file(fn, perf_etc_perfconfig(),
-					    data);
-		found += 1;
-	}
-
-	home = getenv("HOME");
 	if (perf_config_global() && home) {
 		char *user_config = strdup(mkpath("%s/.perfconfig", home));
 		struct stat st;
@@ -495,12 +484,36 @@ int perf_config(config_fn_t fn, void *data)
 		if (!st.st_size)
 			goto out_free;
 
-		ret += perf_config_from_file(fn, user_config, data);
-		found += 1;
+		return user_config;
+
 out_free:
 		free(user_config);
 	}
 out:
+	return NULL;
+}
+
+int perf_config(config_fn_t fn, void *data)
+{
+	int ret = 0, found = 0;
+	char *user_config;
+
+	/* Setting $PERF_CONFIG makes perf read _only_ the given config file. */
+	if (config_exclusive_filename)
+		return perf_config_from_file(fn, config_exclusive_filename, data);
+	if (perf_config_system() && !access(perf_etc_perfconfig(), R_OK)) {
+		ret += perf_config_from_file(fn, perf_etc_perfconfig(),
+					    data);
+		found += 1;
+	}
+
+	user_config = perf_user_perfconfig();
+	if (user_config) {
+		ret += perf_config_from_file(fn, user_config, data);
+		found += 1;
+		free(user_config);
+	}
+
 	if (found == 0)
 		return -1;
 	return ret;

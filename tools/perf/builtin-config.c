@@ -46,7 +46,7 @@ static int show_config(const char *key, const char *value,
 int cmd_config(int argc, const char **argv, const char *prefix __maybe_unused)
 {
 	int ret = 0;
-	char *user_config = mkpath("%s/.perfconfig", getenv("HOME"));
+	char *user_config = perf_user_perfconfig();
 
 	argc = parse_options(argc, argv, config_options, config_usage,
 			     PARSE_OPT_STOP_AT_NON_OPTION);
@@ -83,5 +83,6 @@ int cmd_config(int argc, const char **argv, const char *prefix __maybe_unused)
 		usage_with_options(config_usage, config_options);
 	}
 
+	free(user_config);
 	return ret;
 }

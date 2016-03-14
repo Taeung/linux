@@ -34,6 +34,7 @@ extern int perf_config_bool(const char *, const char *);
 extern int config_error_nonbool(const char *);
 extern const char *perf_config_dirname(const char *, const char *);
 extern const char *perf_etc_perfconfig(void);
+extern char *perf_user_perfconfig(void);
 
 char *alias_lookup(const char *alias);
 int split_cmdline(char *cmdline, const char ***argv);
