@@ -13,6 +13,7 @@
 #include <subcmd/exec-cmd.h>
 #include "util/hist.h"  /* perf_hist_config */
 #include "util/llvm-utils.h"   /* perf_llvm_config */
+#include "config.h"
 
 #define MAXNAME (256)
 
@@ -504,6 +505,128 @@ out:
 	if (found == 0)
 		return -1;
 	return ret;
+}
+
+static struct perf_config_item *find_config(struct list_head *config_list,
+				       const char *section,
+				       const char *name)
+{
+	struct perf_config_item *config;
+
+	list_for_each_entry(config, config_list, list) {
+		if (!strcmp(config->section, section) &&
+		    !strcmp(config->name, name))
+			return config;
+	}
+
+	return NULL;
+}
+
+static struct perf_config_item *add_config(struct list_head *config_list,
+					   const char *section,
+					   const char *name)
+{
+	struct perf_config_item *config = zalloc(sizeof(*config));
+
+	if (!config)
+		return NULL;
+
+	config->section = strdup(section);
+	if (!section)
+		goto out_err;
+
+	config->name = strdup(name);
+	if (!name) {
+		free((char *)config->section);
+		goto out_err;
+	}
+
+	list_add_tail(&config->list, config_list);
+	return config;
+
+out_err:
+	free(config);
+	pr_err("%s: strdup failed\n", __func__);
+	return NULL;
+}
+
+static int set_value(struct perf_config_item *config, const char *value)
+{
+	char *val = strdup(value);
+
+	if (!val)
+		return -1;
+	config->value = val;
+
+	return 0;
+}
+
+static int collect_config(const char *var, const char *value,
+			  void *configs)
+{
+	int ret = 0;
+	char *ptr, *key;
+	char *section, *name;
+	struct perf_config_item *config;
+	struct list_head *config_list = configs;
+
+	key = ptr = strdup(var);
+	if (!key) {
+		pr_err("%s: strdup failed\n", __func__);
+		return -1;
+	}
+
+	section = strsep(&ptr, ".");
+	name = ptr;
+	if (name == NULL || value == NULL) {
+		ret = -1;
+		goto out_free;
+	}
+
+	config = find_config(config_list, section, name);
+	if (!config) {
+		config = add_config(config_list, section, name);
+		if (!config) {
+			free(config->section);
+			free(config->name);
+			ret = -1;
+			goto out_free;
+		}
+	}
+
+	ret = set_value(config, value);
+
+out_free:
+	free(key);
+	return ret;
+}
+
+struct perf_config_set *perf_config_set__new(void)
+{
+	struct perf_config_set *perf_configs = zalloc(sizeof(*perf_configs));
+
+	if (!perf_configs)
+		return NULL;
+
+	INIT_LIST_HEAD(&perf_configs->config_list);
+	perf_config(collect_config, &perf_configs->config_list);
+
+	return perf_configs;
+}
+
+void perf_config_set__delete(struct perf_config_set *perf_configs)
+{
+	struct perf_config_item *pos, *item;
+
+	list_for_each_entry_safe(pos, item, &perf_configs->config_list, list) {
+		list_del(&pos->list);
+		free(pos->section);
+		free(pos->name);
+		free(pos->value);
+		free(pos);
+	}
+
+	free(perf_configs);
 }
 
 /*

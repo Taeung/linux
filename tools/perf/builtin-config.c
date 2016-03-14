@@ -12,6 +12,7 @@
 #include <subcmd/parse-options.h>
 #include "util/util.h"
 #include "util/debug.h"
+#include "util/config.h"
 
 static bool use_system_config, use_user_config;
 
