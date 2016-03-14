@@ -647,6 +647,21 @@ out_free:
 	return ret;
 }
 
+static struct perf_config_set *perf_config_set__init(struct perf_config_set *perf_configs)
+{
+	int i;
+	struct list_head *head = &perf_configs->config_list;
+
+	INIT_LIST_HEAD(&perf_configs->config_list);
+
+	for (i = 0; i != CONFIG_END; i++) {
+		struct perf_config_item *config = &default_configs[i];
+
+		list_add_tail(&config->list, head);
+	}
+	return perf_configs;
+}
+
 struct perf_config_set *perf_config_set__new(void)
 {
 	struct perf_config_set *perf_configs = zalloc(sizeof(*perf_configs));
@@ -654,7 +669,7 @@ struct perf_config_set *perf_config_set__new(void)
 	if (!perf_configs)
 		return NULL;
 
-	INIT_LIST_HEAD(&perf_configs->config_list);
+	perf_config_set__init(perf_configs);
 	perf_config(collect_config, &perf_configs->config_list);
 
 	return perf_configs;
@@ -666,10 +681,12 @@ void perf_config_set__delete(struct perf_config_set *perf_configs)
 
 	list_for_each_entry_safe(pos, item, &perf_configs->config_list, list) {
 		list_del(&pos->list);
-		free((char *)pos->section);
-		free((char *)pos->name);
-		free(pos->value);
-		free(pos);
+		if (pos->is_custom) {
+			free((char *)pos->section);
+			free((char *)pos->name);
+			free(pos->value);
+			free(pos);
+		}
 	}
 
 	free(perf_configs);
