@@ -14,6 +14,11 @@ enum perf_config_type {
 	CONFIG_TYPE_STRING
 };
 
+/**
+ * struct perf_config_item - element of perf's configs
+ *
+ * @is_custom: unknown or new config other than default config
+ */
 struct perf_config_item {
 	const char *name;
 	char *value;
@@ -27,6 +32,7 @@ struct perf_config_item {
 		const char *s;
 	} default_value;
 	enum perf_config_type type;
+	bool is_custom;
 	struct list_head list;
 };
 
