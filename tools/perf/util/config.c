@@ -15,6 +15,7 @@
 #include "util/llvm-utils.h"   /* perf_llvm_config */
 #include "config.h"
 
+#define MAX_CONFIGS 64
 #define MAXNAME (256)
 
 #define DEBUG_CACHE_DIR ".debug"
@@ -28,6 +29,111 @@ static int config_linenr;
 static int config_file_eof;
 
 const char *config_exclusive_filename;
+
+struct perf_config_section default_sections[] = {
+	{ .name = "colors" },
+	{ .name = "tui" },
+	{ .name = "buildid" },
+	{ .name = "annotate" },
+	{ .name = "gtk" },
+	{ .name = "pager" },
+	{ .name = "help" },
+	{ .name = "hist" },
+	{ .name = "ui" },
+	{ .name = "call-graph" },
+	{ .name = "report" },
+	{ .name = "top" },
+	{ .name = "man" },
+	{ .name = "kmem" }
+};
+
+struct perf_config_item default_config_items[][MAX_CONFIGS] = {
+	[CONFIG_COLORS] = {
+		CONF_STR_VAR("top", "red, default"),
+		CONF_STR_VAR("medium", "green, default"),
+		CONF_STR_VAR("normal", "lightgray, default"),
+		CONF_STR_VAR("selected", "white, lightgray"),
+		CONF_STR_VAR("jump_arrows", "blue, default"),
+		CONF_STR_VAR("addr", "magenta, default"),
+		CONF_STR_VAR("root", "white, blue"),
+		CONF_END()
+	},
+	[CONFIG_TUI] = {
+		CONF_BOOL_VAR("report", true),
+		CONF_BOOL_VAR("annotate", true),
+		CONF_BOOL_VAR("top", true),
+		CONF_END()
+	},
+	[CONFIG_BUILDID] = {
+		CONF_STR_VAR("dir", "~/.debug"),
+		CONF_END()
+	},
+	[CONFIG_ANNOTATE] = {
+		CONF_BOOL_VAR("hide_src_code", false),
+		CONF_BOOL_VAR("use_offset", true),
+		CONF_BOOL_VAR("jump_arrows", true),
+		CONF_BOOL_VAR("show_nr_jumps", false),
+		CONF_BOOL_VAR("show_linenr", false),
+		CONF_BOOL_VAR("show_total_period", false),
+		CONF_END()
+	},
+	[CONFIG_GTK] = {
+		CONF_BOOL_VAR("annotate", false),
+		CONF_BOOL_VAR("report", false),
+		CONF_BOOL_VAR("top", false),
+		CONF_END()
+	},
+	[CONFIG_PAGER] = {
+		CONF_BOOL_VAR("cmd", true),
+		CONF_BOOL_VAR("report", true),
+		CONF_BOOL_VAR("annotate", true),
+		CONF_BOOL_VAR("top", true),
+		CONF_BOOL_VAR("diff", true),
+		CONF_END()
+	},
+	[CONFIG_HELP] = {
+		CONF_STR_VAR("format", "man"),
+		CONF_INT_VAR("autocorrect", 0),
+		CONF_END()
+	},
+	[CONFIG_HIST] = {
+		CONF_STR_VAR("percentage", "absolute"),
+		CONF_END()
+	},
+	[CONFIG_UI] = {
+		CONF_BOOL_VAR("show-headers", true),
+		CONF_END()
+	},
+	[CONFIG_CALL_GRAPH] = {
+		CONF_STR_VAR("record-mode", "fp"),
+		CONF_LONG_VAR("dump-size", 8192),
+		CONF_STR_VAR("print-type", "graph"),
+		CONF_STR_VAR("order", "callee"),
+		CONF_STR_VAR("sort-key", "function"),
+		CONF_DOUBLE_VAR("threshold", 0.5),
+		CONF_LONG_VAR("print-limit", 0),
+		CONF_END()
+	},
+	[CONFIG_REPORT] = {
+		CONF_BOOL_VAR("group", true),
+		CONF_BOOL_VAR("children", true),
+		CONF_FLOAT_VAR("percent-limit", 0),
+		CONF_U64_VAR("queue-size", 0),
+		CONF_END()
+	},
+	[CONFIG_TOP] = {
+		CONF_BOOL_VAR("children", true),
+		CONF_END()
+	},
+	[CONFIG_MAN] = {
+		CONF_STR_VAR("viewer", "man"),
+		CONF_END()
+	},
+	[CONFIG_KMEM] = {
+		CONF_STR_VAR("default", "slab"),
+		CONF_END()
+	}
+};
 
 static int get_next_char(void)
 {
@@ -663,12 +769,12 @@ void perf_config_set__delete(struct perf_config_set *perf_configs)
 		list_for_each_entry_safe(config_item, item_tmp,
 					 &section->config_items, list) {
 			list_del(&config_item->list);
-			free(config_item->name);
+			free((char *)config_item->name);
 			free(config_item->value);
 			free(config_item);
 		}
 		list_del(&section->list);
-		free(section->name);
+		free((char *)section->name);
 		free(section);
 	}
 
