@@ -13,6 +13,7 @@
 #include <subcmd/exec-cmd.h>
 #include "util/hist.h"  /* perf_hist_config */
 #include "util/llvm-utils.h"   /* perf_llvm_config */
+#include "config.h"
 
 #define MAXNAME (256)
 
@@ -504,6 +505,174 @@ out:
 	if (found == 0)
 		return -1;
 	return ret;
+}
+
+static struct perf_config_section *find_section(struct list_head *sections,
+						const char *section_name)
+{
+	struct perf_config_section *section;
+
+	list_for_each_entry(section, sections, list)
+		if (!strcmp(section->name, section_name))
+			return section;
+
+	return NULL;
+}
+
+static struct perf_config_item *find_config_item(const char *name,
+						 struct perf_config_section *section)
+{
+	struct perf_config_item *config_item;
+
+	list_for_each_entry(config_item, &section->config_items, list)
+		if (!strcmp(config_item->name, name))
+			return config_item;
+
+	return NULL;
+}
+
+static void find_config(struct list_head *sections,
+			struct perf_config_section **section,
+			struct perf_config_item **config_item,
+			const char *section_name, const char *name)
+{
+	*section = find_section(sections, section_name);
+
+	if (*section != NULL)
+		*config_item = find_config_item(name, *section);
+	else
+		*config_item = NULL;
+}
+
+static struct perf_config_section *add_section(struct list_head *sections,
+					       const char *section_name)
+{
+	struct perf_config_section *section = zalloc(sizeof(*section));
+
+	if (!section)
+		return NULL;
+
+	INIT_LIST_HEAD(&section->config_items);
+	section->name = strdup(section_name);
+	if (!section->name) {
+		pr_err("%s: strdup failed\n", __func__);
+		free(section);
+		return NULL;
+	}
+
+	list_add_tail(&section->list, sections);
+	return section;
+}
+
+static struct perf_config_item *add_config_item(struct perf_config_section *section,
+						const char *name)
+{
+	struct perf_config_item *config_item = zalloc(sizeof(*config_item));
+
+	if (!config_item)
+		return NULL;
+
+	config_item->name = strdup(name);
+	if (!name) {
+		pr_err("%s: strdup failed\n", __func__);
+		goto out_err;
+	}
+
+	list_add_tail(&config_item->list, &section->config_items);
+	return config_item;
+
+out_err:
+	free(config_item);
+	return NULL;
+}
+
+static int set_value(struct perf_config_item *config_item, const char *value)
+{
+	char *val = strdup(value);
+
+	if (!val)
+		return -1;
+
+	free(config_item->value);
+	config_item->value = val;
+	return 0;
+}
+
+static int collect_config(const char *var, const char *value,
+			  void *section_list)
+{
+	int ret = -1;
+	char *ptr, *key;
+	char *section_name, *name;
+	struct perf_config_section *section = NULL;
+	struct perf_config_item *config_item = NULL;
+	struct list_head *sections = section_list;
+
+	key = ptr = strdup(var);
+	if (!key) {
+		pr_err("%s: strdup failed\n", __func__);
+		return -1;
+	}
+
+	section_name = strsep(&ptr, ".");
+	name = ptr;
+	if (name == NULL || value == NULL)
+		goto out_free;
+
+	find_config(sections, &section, &config_item, section_name, name);
+
+	if (!section) {
+		section = add_section(sections, section_name);
+		if (!section)
+			goto out_free;
+	}
+	if (!config_item) {
+		config_item = add_config_item(section, name);
+		if (!config_item)
+			goto out_free;
+	}
+
+	ret = set_value(config_item, value);
+	return ret;
+
+out_free:
+	free(key);
+	return ret;
+}
+
+struct perf_config_set *perf_config_set__new(void)
+{
+	struct perf_config_set *perf_configs = zalloc(sizeof(*perf_configs));
+
+	if (!perf_configs)
+		return NULL;
+
+	INIT_LIST_HEAD(&perf_configs->sections);
+	perf_config(collect_config, &perf_configs->sections);
+
+	return perf_configs;
+}
+
+void perf_config_set__delete(struct perf_config_set *perf_configs)
+{
+	struct perf_config_section *section, *section_tmp;
+	struct perf_config_item *config_item, *item_tmp;
+
+	list_for_each_entry_safe(section, section_tmp,
+				 &perf_configs->sections, list) {
+		list_for_each_entry_safe(config_item, item_tmp,
+					 &section->config_items, list) {
+			list_del(&config_item->list);
+			free(config_item->name);
+			free(config_item->value);
+			free(config_item);
+		}
+		list_del(&section->list);
+		free(section->name);
+		free(section);
+	}
+
+	free(perf_configs);
 }
 
 /*
