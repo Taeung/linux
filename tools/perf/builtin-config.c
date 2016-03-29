@@ -12,6 +12,7 @@
 #include <subcmd/parse-options.h>
 #include "util/util.h"
 #include "util/debug.h"
+#include "util/config.h"
 
 static bool use_system_config, use_user_config;
 
@@ -32,13 +33,24 @@ static struct option config_options[] = {
 	OPT_END()
 };
 
-static int show_config(const char *key, const char *value,
-		       void *cb __maybe_unused)
+static int show_config(struct perf_config_set *perf_configs)
 {
-	if (value)
-		printf("%s=%s\n", key, value);
-	else
-		printf("%s\n", key);
+	struct perf_config_section *section;
+	struct perf_config_item *config_item;
+	struct list_head *sections = &perf_configs->sections;
+
+	if (list_empty(sections))
+		return -1;
+
+	list_for_each_entry(section, sections, list) {
+		list_for_each_entry(config_item, &section->config_items, list) {
+			char *value = config_item->value;
+
+			if (value)
+				printf("%s.%s=%s\n", section->name,
+				       config_item->name, value);
+		}
+	}
 
 	return 0;
 }
@@ -46,6 +58,7 @@ static int show_config(const char *key, const char *value,
 int cmd_config(int argc, const char **argv, const char *prefix __maybe_unused)
 {
 	int ret = 0;
+	struct perf_config_set *perf_configs;
 	char *user_config = mkpath("%s/.perfconfig", getenv("HOME"));
 
 	argc = parse_options(argc, argv, config_options, config_usage,
@@ -63,13 +76,19 @@ int cmd_config(int argc, const char **argv, const char *prefix __maybe_unused)
 	else if (use_user_config)
 		config_exclusive_filename = user_config;
 
+	perf_configs = perf_config_set__new();
+	if (!perf_configs) {
+		ret = -1;
+		goto out_err;
+	}
+
 	switch (actions) {
 	case ACTION_LIST:
 		if (argc) {
 			pr_err("Error: takes no arguments\n");
 			parse_options_usage(config_usage, config_options, "l", 1);
 		} else {
-			ret = perf_config(show_config, NULL);
+			ret = show_config(perf_configs);
 			if (ret < 0) {
 				const char * config_filename = config_exclusive_filename;
 				if (!config_exclusive_filename)
@@ -83,5 +102,7 @@ int cmd_config(int argc, const char **argv, const char *prefix __maybe_unused)
 		usage_with_options(config_usage, config_options);
 	}
 
+	perf_config_set__delete(perf_configs);
+out_err:
 	return ret;
 }
