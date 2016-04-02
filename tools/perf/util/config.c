@@ -663,6 +663,7 @@ static struct perf_config_section *add_section(struct list_head *sections,
 	if (!section)
 		return NULL;
 
+	section->is_custom = true;
 	INIT_LIST_HEAD(&section->items);
 	section->name = strdup(section_name);
 	if (!section->name) {
@@ -683,6 +684,7 @@ static struct perf_config_item *add_config_item(struct perf_config_section *sect
 	if (!item)
 		return NULL;
 
+	item->is_custom = true;
 	item->name = strdup(name);
 	if (!item->name) {
 		pr_debug("%s: strdup failed\n", __func__);
@@ -754,12 +756,35 @@ out_free:
 	return -1;
 }
 
+static struct perf_config_set *perf_config_set__init(struct perf_config_set *set)
+{
+	int i, j;
+	struct perf_config_section *section;
+	struct perf_config_item *items;
+	struct list_head *sections = &set->sections;
+
+	INIT_LIST_HEAD(&set->sections);
+
+	for (i = 0; i != CONFIG_END; i++) {
+		section = &default_sections[i];
+		INIT_LIST_HEAD(&section->items);
+
+		items = default_config_items[i];
+		for (j = 0; items[j].name != NULL; j++)
+			list_add_tail(&items[j].node, &section->items);
+
+		list_add_tail(&section->node, sections);
+	}
+
+	return set;
+}
+
 struct perf_config_set *perf_config_set__new(void)
 {
 	struct perf_config_set *set = zalloc(sizeof(*set));
 
 	if (set) {
-		INIT_LIST_HEAD(&set->sections);
+		perf_config_set__init(set);
 		perf_config(collect_config, set);
 	}
 
@@ -779,7 +804,8 @@ static void perf_config_section__purge(struct perf_config_section *section)
 
 	list_for_each_entry_safe(item, tmp, &section->items, node) {
 		list_del_init(&item->node);
-		perf_config_item__delete(item);
+		if (item->is_custom)
+			perf_config_item__delete(item);
 	}
 }
 
@@ -796,7 +822,8 @@ static void perf_config_set__purge(struct perf_config_set *set)
 
 	list_for_each_entry_safe(section, tmp, &set->sections, node) {
 		list_del_init(&section->node);
-		perf_config_section__delete(section);
+		if (section->is_custom)
+			perf_config_section__delete(section);
 	}
 }
 
