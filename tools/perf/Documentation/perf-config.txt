@@ -9,6 +9,8 @@ SYNOPSIS
 --------
 [verse]
 'perf config' [<file-option>] -l | --list
+or
+'perf config' [<file-option>] -a | --list-all
 
 DESCRIPTION
 -----------
@@ -28,6 +30,10 @@ OPTIONS
 --system::
 	For writing and reading options: write to system-wide
 	'$(sysconfdir)/perfconfig' or read it.
+
+-a::
+--list-all::
+	Show current and all possible config variables with default values.
 
 CONFIGURATION FILE
 ------------------
