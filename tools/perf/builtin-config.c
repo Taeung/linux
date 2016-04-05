@@ -35,22 +35,25 @@ static struct option config_options[] = {
 
 static int show_config(struct perf_config_set *set)
 {
+	bool has_value = false;
 	struct perf_config_section *section;
 	struct perf_config_item *item;
 	struct list_head *sections = &set->sections;
-
-	if (list_empty(sections))
-		return -1;
 
 	list_for_each_entry(section, sections, node) {
 		list_for_each_entry(item, &section->items, node) {
 			char *value = item->value;
 
-			if (value)
+			if (value) {
 				printf("%s.%s=%s\n", section->name,
 				       item->name, value);
+				has_value = true;
+			}
 		}
 	}
+
+	if (!has_value)
+		return -1;
 
 	return 0;
 }
