@@ -85,7 +85,9 @@ enum perf_config_secion_idx {
 #define CONF_END()					\
 	{ .name = NULL }
 
-struct perf_config_set *perf_config_set__new(void);
-void perf_config_set__delete(struct perf_config_set *set);
+extern struct perf_config_set *config_set;
+
+void perf_config_set__new(void);
+void perf_config_set__delete(void);
 
 #endif /* __PERF_CONFIG_H */

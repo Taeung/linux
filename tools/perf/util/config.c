@@ -20,6 +20,12 @@
 
 #define DEBUG_CACHE_DIR ".debug"
 
+/*
+ * The config_set contains key-value pairs from config files
+ * (i.e user wide ~/.perfconfig, system wide $(sysconfdir)/perfconfig)
+ * and default config information.
+ */
+struct perf_config_set *config_set;
 
 char buildid_dir[MAXPATHLEN]; /* root dir for buildid, binary cache */
 
@@ -709,15 +715,14 @@ static int set_value(struct perf_config_item *item, const char *value)
 }
 
 static int collect_config(const char *var, const char *value,
-			  void *perf_config_set)
+			  void *data __maybe_unused)
 {
 	int ret = -1;
 	char *ptr, *key;
 	char *section_name, *name;
 	struct perf_config_section *section = NULL;
 	struct perf_config_item *item = NULL;
-	struct perf_config_set *set = perf_config_set;
-	struct list_head *sections = &set->sections;
+	struct list_head *sections = &config_set->sections;
 
 	key = ptr = strdup(var);
 	if (!key) {
@@ -749,18 +754,18 @@ static int collect_config(const char *var, const char *value,
 
 out_free:
 	free(key);
-	perf_config_set__delete(set);
+	perf_config_set__delete();
 	return -1;
 }
 
-static struct perf_config_set *perf_config_set__init(struct perf_config_set *set)
+static struct perf_config_set *perf_config_set__init(void)
 {
 	int i, j;
 	struct perf_config_section *section;
 	struct perf_config_item *items;
-	struct list_head *sections = &set->sections;
+	struct list_head *sections = &config_set->sections;
 
-	INIT_LIST_HEAD(&set->sections);
+	INIT_LIST_HEAD(&config_set->sections);
 
 	for (i = 0; i != CONFIG_END; i++) {
 		section = &default_sections[i];
@@ -773,19 +778,17 @@ static struct perf_config_set *perf_config_set__init(struct perf_config_set *set
 		list_add_tail(&section->node, sections);
 	}
 
-	return set;
+	return config_set;
 }
 
-struct perf_config_set *perf_config_set__new(void)
+void perf_config_set__new(void)
 {
-	struct perf_config_set *set = zalloc(sizeof(*set));
+	config_set = zalloc(sizeof(*config_set));
 
-	if (set) {
-		perf_config_set__init(set);
-		perf_config(collect_config, set);
+	if (config_set) {
+		perf_config_set__init();
+		perf_config(collect_config, NULL);
 	}
-
-	return set;
 }
 
 static void perf_config_item__delete(struct perf_config_item *item)
@@ -816,20 +819,20 @@ static void perf_config_section__delete(struct perf_config_section *section)
 	}
 }
 
-static void perf_config_set__purge(struct perf_config_set *set)
+static void perf_config_set__purge(void)
 {
 	struct perf_config_section *section, *tmp;
 
-	list_for_each_entry_safe(section, tmp, &set->sections, node) {
+	list_for_each_entry_safe(section, tmp, &config_set->sections, node) {
 		list_del_init(&section->node);
 		perf_config_section__delete(section);
 	}
 }
 
-void perf_config_set__delete(struct perf_config_set *set)
+void perf_config_set__delete(void)
 {
-	perf_config_set__purge(set);
-	free(set);
+	perf_config_set__purge();
+	free(config_set);
 }
 
 /*
