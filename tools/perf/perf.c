@@ -21,6 +21,7 @@
 #include <pthread.h>
 #include <stdlib.h>
 #include <time.h>
+#include "util/config.h"
 
 const char perf_usage_string[] =
 	"perf [--version] [--help] [OPTIONS] COMMAND [ARGS]";
@@ -548,6 +549,10 @@ int main(int argc, const char **argv)
 
 	srandom(time(NULL));
 
+	perf_config_set__new();
+	if (!config_set)
+		return -1;
+
 	perf_config(perf_default_config, NULL);
 	set_buildid_dir(NULL);
 
@@ -641,5 +646,6 @@ int main(int argc, const char **argv)
 	fprintf(stderr, "Failed to run command '%s': %s\n",
 		cmd, strerror_r(errno, sbuf, sizeof(sbuf)));
 out:
+	perf_config_set__delete();
 	return 1;
 }

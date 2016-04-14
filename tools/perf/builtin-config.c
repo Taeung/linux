@@ -82,12 +82,6 @@ int cmd_config(int argc, const char **argv, const char *prefix __maybe_unused)
 	else if (use_user_config)
 		config_exclusive_filename = user_config;
 
-	perf_config_set__new();
-	if (!config_set) {
-		ret = -1;
-		goto out_err;
-	}
-
 	switch (actions) {
 	case ACTION_LIST:
 		if (argc) {
@@ -108,7 +102,5 @@ int cmd_config(int argc, const char **argv, const char *prefix __maybe_unused)
 		usage_with_options(config_usage, config_options);
 	}
 
-	perf_config_set__delete();
-out_err:
 	return ret;
 }
