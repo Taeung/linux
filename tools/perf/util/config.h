@@ -14,6 +14,11 @@ enum perf_config_type {
 	CONFIG_TYPE_STRING
 };
 
+/**
+ * struct perf_config_item - element of perf's configs
+ *
+ * @is_allocated: unknown or new config other than default config
+ */
 struct perf_config_item {
 	const char *name;
 	char *value;
@@ -27,11 +32,13 @@ struct perf_config_item {
 		const char *s;
 	} default_value;
 	enum perf_config_type type;
+	bool is_allocated;
 	struct list_head node;
 };
 
 struct perf_config_section {
 	const char *name;
+	bool is_allocated;
 	struct list_head items;
 	struct list_head node;
 };

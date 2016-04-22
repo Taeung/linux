@@ -705,6 +705,7 @@ static struct perf_config_section *add_section(struct list_head *sections,
 	if (!section)
 		return NULL;
 
+	section->is_allocated = true;
 	INIT_LIST_HEAD(&section->items);
 	section->name = strdup(section_name);
 	if (!section->name) {
@@ -725,6 +726,7 @@ static struct perf_config_item *add_config_item(struct perf_config_section *sect
 	if (!item)
 		return NULL;
 
+	item->is_allocated = true;
 	item->name = strdup(name);
 	if (!item->name) {
 		pr_debug("%s: strdup failed\n", __func__);
@@ -793,12 +795,35 @@ out_free:
 	return -1;
 }
 
+static struct perf_config_set *perf_config_set__init(struct perf_config_set *set)
+{
+	unsigned int i, j;
+	struct perf_config_section *section;
+	struct perf_config_item *items;
+	struct list_head *sections = &set->sections;
+
+	INIT_LIST_HEAD(&set->sections);
+
+	for (i = 0; i < ARRAY_SIZE(default_sections); i++) {
+		section = &default_sections[i];
+		INIT_LIST_HEAD(&section->items);
+
+		items = default_config_items[i];
+		for (j = 0; items[j].name != NULL; j++)
+			list_add_tail(&items[j].node, &section->items);
+
+		list_add_tail(&section->node, sections);
+	}
+
+	return set;
+}
+
 struct perf_config_set *perf_config_set__new(void)
 {
 	struct perf_config_set *set = zalloc(sizeof(*set));
 
 	if (set) {
-		INIT_LIST_HEAD(&set->sections);
+		perf_config_set__init(set);
 		perf_config(collect_config, set);
 	}
 
@@ -807,9 +832,11 @@ struct perf_config_set *perf_config_set__new(void)
 
 static void perf_config_item__delete(struct perf_config_item *item)
 {
-	zfree((char **)&item->name);
 	zfree(&item->value);
-	free(item);
+	if (item->is_allocated) {
+		zfree((char **)&item->name);
+		free(item);
+	}
 }
 
 static void perf_config_section__purge(struct perf_config_section *section)
@@ -825,8 +852,10 @@ static void perf_config_section__purge(struct perf_config_section *section)
 static void perf_config_section__delete(struct perf_config_section *section)
 {
 	perf_config_section__purge(section);
-	zfree((char **)&section->name);
-	free(section);
+	if (section->is_allocated) {
+		zfree((char **)&section->name);
+		free(section);
+	}
 }
 
 static void perf_config_set__purge(struct perf_config_set *set)
