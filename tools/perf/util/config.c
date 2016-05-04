@@ -29,6 +29,154 @@ static int config_file_eof;
 
 const char *config_exclusive_filename;
 
+const struct perf_config_section default_sections[] = {
+	{ .name = "colors" },
+	{ .name = "tui" },
+	{ .name = "buildid" },
+	{ .name = "annotate" },
+	{ .name = "gtk" },
+	{ .name = "pager" },
+	{ .name = "help" },
+	{ .name = "hist" },
+	{ .name = "ui" },
+	{ .name = "call-graph" },
+	{ .name = "report" },
+	{ .name = "top" },
+	{ .name = "man" },
+	{ .name = "kmem" },
+	{ .name = "intel-pt" },
+	{ .name = "convert" },
+};
+
+const struct default_config_item colors_config_items[] = {
+	CONF_STR_VAR("top", "red, default"),
+	CONF_STR_VAR("medium", "green, default"),
+	CONF_STR_VAR("normal", "default, default"),
+	CONF_STR_VAR("selected", "black, yellow"),
+	CONF_STR_VAR("jump_arrows", "blue, default"),
+	CONF_STR_VAR("addr", "magenta, default"),
+	CONF_STR_VAR("root", "white, blue"),
+	CONF_END()
+};
+
+const struct default_config_item tui_config_items[] = {
+	CONF_BOOL_VAR("report", true),
+	CONF_BOOL_VAR("annotate", true),
+	CONF_BOOL_VAR("top", true),
+	CONF_END()
+};
+
+const struct default_config_item buildid_config_items[] = {
+	CONF_STR_VAR("dir", "~/.debug"),
+	CONF_END()
+};
+
+const struct default_config_item annotate_config_items[] = {
+	CONF_BOOL_VAR("hide_src_code", false),
+	CONF_BOOL_VAR("use_offset", true),
+	CONF_BOOL_VAR("jump_arrows", true),
+	CONF_BOOL_VAR("show_nr_jumps", false),
+	CONF_BOOL_VAR("show_linenr", false),
+	CONF_BOOL_VAR("show_total_period", false),
+	CONF_END()
+};
+
+const struct default_config_item gtk_config_items[] = {
+	CONF_BOOL_VAR("annotate", false),
+	CONF_BOOL_VAR("report", false),
+	CONF_BOOL_VAR("top", false),
+	CONF_END()
+};
+
+const struct default_config_item pager_config_items[] = {
+	CONF_BOOL_VAR("cmd", true),
+	CONF_BOOL_VAR("report", true),
+	CONF_BOOL_VAR("annotate", true),
+	CONF_BOOL_VAR("top", true),
+	CONF_BOOL_VAR("diff", true),
+	CONF_END()
+};
+
+const struct default_config_item help_config_items[] = {
+	CONF_STR_VAR("format", "man"),
+	CONF_INT_VAR("autocorrect", 0),
+	CONF_END()
+};
+
+const struct default_config_item hist_config_items[] = {
+	CONF_STR_VAR("percentage", "absolute"),
+	CONF_END()
+};
+
+const struct default_config_item ui_config_items[] = {
+	CONF_BOOL_VAR("show-headers", true),
+	CONF_END()
+};
+
+const struct default_config_item call_graph_config_items[] = {
+	CONF_STR_VAR("record-mode", "fp"),
+	CONF_LONG_VAR("dump-size", 8192),
+	CONF_STR_VAR("print-type", "graph"),
+	CONF_STR_VAR("order", "callee"),
+	CONF_STR_VAR("sort-key", "function"),
+	CONF_DOUBLE_VAR("threshold", 0.5),
+	CONF_LONG_VAR("print-limit", 0),
+	CONF_END()
+};
+
+const struct default_config_item report_config_items[] = {
+	CONF_BOOL_VAR("group", true),
+	CONF_BOOL_VAR("children", true),
+	CONF_FLOAT_VAR("percent-limit", 0),
+	CONF_U64_VAR("queue-size", 0),
+	CONF_END()
+};
+
+const struct default_config_item top_config_items[] = {
+	CONF_BOOL_VAR("children", true),
+	CONF_END()
+};
+
+const struct default_config_item man_config_items[] = {
+	CONF_STR_VAR("viewer", "man"),
+	CONF_END()
+};
+
+const struct default_config_item kmem_config_items[] = {
+	CONF_STR_VAR("default", "slab"),
+	CONF_END()
+};
+
+const struct default_config_item intel_pt_config_items[] = {
+	CONF_INT_VAR("cache-divisor", 64),
+	CONF_BOOL_VAR("mispred-all", false),
+	CONF_END()
+};
+
+const struct default_config_item convert_config_items[] = {
+	CONF_U64_VAR("queue-size", 0),
+	CONF_END()
+};
+
+const struct default_config_item *default_config_items[] = {
+	colors_config_items,
+	tui_config_items,
+	buildid_config_items,
+	annotate_config_items,
+	gtk_config_items,
+	pager_config_items,
+	help_config_items,
+	hist_config_items,
+	ui_config_items,
+	call_graph_config_items,
+	report_config_items,
+	top_config_items,
+	man_config_items,
+	kmem_config_items,
+	intel_pt_config_items,
+	convert_config_items,
+};
+
 static int get_next_char(void)
 {
 	int c;
@@ -677,7 +825,7 @@ static void perf_config_section__purge(struct perf_config_section *section)
 static void perf_config_section__delete(struct perf_config_section *section)
 {
 	perf_config_section__purge(section);
-	zfree(&section->name);
+	zfree((char **)&section->name);
 	free(section);
 }
 
