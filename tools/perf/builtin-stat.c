@@ -66,6 +66,7 @@
 #include <stdlib.h>
 #include <sys/prctl.h>
 #include <locale.h>
+#include <math.h>
 
 #define DEFAULT_SEPARATOR	" "
 #define CNTR_NOT_SUPPORTED	"<not supported>"
@@ -986,12 +987,12 @@ static void abs_printout(int id, int nr, struct perf_evsel *evsel, double avg)
 	const char *fmt;
 
 	if (csv_output) {
-		fmt = sc != 1.0 ?  "%.2f%s" : "%.0f%s";
+		fmt = floor(sc) != sc ?  "%.2f%s" : "%.0f%s";
 	} else {
 		if (big_num)
-			fmt = sc != 1.0 ? "%'18.2f%s" : "%'18.0f%s";
+			fmt = floor(sc) != sc ? "%'18.2f%s" : "%'18.0f%s";
 		else
-			fmt = sc != 1.0 ? "%18.2f%s" : "%18.0f%s";
+			fmt = floor(sc) != sc ? "%18.2f%s" : "%18.0f%s";
 	}
 
 	aggr_printout(evsel, id, nr);
