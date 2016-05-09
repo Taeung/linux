@@ -509,44 +509,30 @@ static struct ui_browser_colorset {
 	{
 		.colorset = HE_COLORSET_TOP,
 		.name	  = "top",
-		.fg	  = "red",
-		.bg	  = "default",
 	},
 	{
 		.colorset = HE_COLORSET_MEDIUM,
 		.name	  = "medium",
-		.fg	  = "green",
-		.bg	  = "default",
 	},
 	{
 		.colorset = HE_COLORSET_NORMAL,
 		.name	  = "normal",
-		.fg	  = "default",
-		.bg	  = "default",
 	},
 	{
 		.colorset = HE_COLORSET_SELECTED,
 		.name	  = "selected",
-		.fg	  = "black",
-		.bg	  = "yellow",
 	},
 	{
 		.colorset = HE_COLORSET_JUMP_ARROWS,
 		.name	  = "jump_arrows",
-		.fg	  = "blue",
-		.bg	  = "default",
 	},
 	{
 		.colorset = HE_COLORSET_ADDR,
 		.name	  = "addr",
-		.fg	  = "magenta",
-		.bg	  = "default",
 	},
 	{
 		.colorset = HE_COLORSET_ROOT,
 		.name	  = "root",
-		.fg	  = "white",
-		.bg	  = "blue",
 	},
 	{
 		.name = NULL,
@@ -591,6 +577,7 @@ static int ui_browser__color_config(const char *var, const char *value,
 		if (strcmp(ui_browser__colorsets[i].name, name) != 0)
 			continue;
 
+		zfree((char **)&ui_browser__colorsets[i].fg);
 		ret = ui_browser__config_gcolors(&ui_browser__colorsets[i], value);
 		break;
 	}
@@ -745,10 +732,41 @@ void __ui_browser__line_arrow(struct ui_browser *browser, unsigned int column,
 		__ui_browser__line_arrow_down(browser, column, start, end);
 }
 
+static void ui_browser__free_color_configs(void)
+{
+	int i;
+
+	for (i = 0; ui_browser__colorsets[i].name != NULL; ++i)
+		zfree((char **)&ui_browser__colorsets[i].fg);
+}
+
+void ui_browser__free(void)
+{
+	ui_browser__free_color_configs();
+}
+
+static void ui_browser__init_colorsets(void)
+{
+	int i, j;
+
+	for (i = 0; ui_browser__colorsets[i].name != NULL; ++i) {
+		const char *name = ui_browser__colorsets[i].name;
+
+		for (j = 0; colors_config_items[j].name != NULL; j++) {
+			if (!strcmp(name, colors_config_items[j].name)) {
+				ui_browser__config_gcolors(&ui_browser__colorsets[i],
+							   colors_config_items[j].value.s);
+				break;
+			}
+		}
+	}
+}
+
 void ui_browser__init(void)
 {
 	int i = 0;
 
+	ui_browser__init_colorsets();
 	perf_config(ui_browser__color_config, NULL);
 
 	while (ui_browser__colorsets[i].name) {
