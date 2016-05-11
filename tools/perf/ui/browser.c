@@ -553,12 +553,31 @@ static struct ui_browser_colorset {
 	}
 };
 
+static int ui_browser__config_colors(struct ui_browser_colorset *ui_browser_color,
+				     const char *value)
+{
+	char *fg = NULL, *bg;
+
+	fg = strdup(value);
+	if (fg == NULL)
+		return -1;
+
+	bg = strtok(fg, ",");
+	if (bg == NULL) {
+		free(fg);
+		return -1;
+	}
+	ltrim(bg);
+
+	ui_browser_color->fg = fg;
+	ui_browser_color->bg = bg;
+	return 0;
+}
 
 static int ui_browser__color_config(const char *var, const char *value,
 				    void *data __maybe_unused)
 {
-	char *fg = NULL, *bg;
-	int i;
+	int i, ret;
 
 	/* same dir for all commands */
 	if (prefixcmp(var, "colors.") != 0)
@@ -570,23 +589,11 @@ static int ui_browser__color_config(const char *var, const char *value,
 		if (strcmp(ui_browser__colorsets[i].name, name) != 0)
 			continue;
 
-		fg = strdup(value);
-		if (fg == NULL)
-			break;
-
-		bg = strchr(fg, ',');
-		if (bg == NULL)
-			break;
-
-		*bg = '\0';
-		while (isspace(*++bg));
-		ui_browser__colorsets[i].bg = bg;
-		ui_browser__colorsets[i].fg = fg;
-		return 0;
+		ret = ui_browser__config_colors(&ui_browser__colorsets[i], value);
+		break;
 	}
 
-	free(fg);
-	return -1;
+	return ret;
 }
 
 void ui_browser__argv_seek(struct ui_browser *browser, off_t offset, int whence)
