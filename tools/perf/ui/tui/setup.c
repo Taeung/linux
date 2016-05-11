@@ -171,4 +171,5 @@ void ui__exit(bool wait_for_ok)
 	SLang_reset_tty();
 
 	perf_error__unregister(&perf_tui_eops);
+	ui_browser__free();
 }

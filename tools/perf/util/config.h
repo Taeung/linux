@@ -44,6 +44,16 @@ struct perf_config_set {
 	struct list_head sections;
 };
 
+enum colors_config_items_idx {
+	CONFIG_COLORS_TOP,
+	CONFIG_COLORS_MEDIUM,
+	CONFIG_COLORS_NORMAL,
+	CONFIG_COLORS_SELECTED,
+	CONFIG_COLORS_JUMP_ARROWS,
+	CONFIG_COLORS_ADDR,
+	CONFIG_COLORS_ROOT,
+};
+
 #define CONF_VAR(_name, _field, _val, _type)			\
 	{ .name = _name, .value._field = _val, .type = _type }
 
@@ -63,6 +73,8 @@ struct perf_config_set {
 	CONF_VAR(_name, s, _val, CONFIG_TYPE_STRING)
 #define CONF_END()					\
 	{ .name = NULL }
+
+extern const struct default_config_item colors_config_items[];
 
 struct perf_config_set *perf_config_set__new(void);
 void perf_config_set__delete(struct perf_config_set *set);
