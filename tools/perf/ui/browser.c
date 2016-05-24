@@ -738,7 +738,6 @@ void ui_browser__init(void)
 {
 	int i = 0;
 
-	default_colors_config_init();
 	perf_config(ui_browser__color_config, NULL);
 
 	while (ui_browser__colorsets[i].name) {

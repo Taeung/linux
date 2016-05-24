@@ -77,6 +77,11 @@ struct pager_config {
 	int val;
 };
 
+static void perf_default_config_init(void)
+{
+	default_colors_config_init();
+}
+
 static int pager_command_config(const char *var, const char *value, void *data)
 {
 	struct pager_config *c = data;
@@ -558,6 +563,7 @@ int main(int argc, const char **argv)
 
 	srandom(time(NULL));
 
+	perf_default_config_init();
 	perf_config(perf_default_config, NULL);
 	set_buildid_dir(NULL);
 
