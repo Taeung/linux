@@ -503,61 +503,53 @@ unsigned int ui_browser__list_head_refresh(struct ui_browser *browser)
 }
 
 static struct ui_browser_colorset {
-	const char *name, *fg, *bg;
+	const char *name, *fb_ground;
 	int colorset;
 } ui_browser__colorsets[] = {
 	{
-		.colorset = HE_COLORSET_TOP,
-		.name	  = "top",
-		.fg	  = "red",
-		.bg	  = "default",
+		.colorset  = HE_COLORSET_TOP,
+		.name      = "top",
+		.fb_ground = "red, default",
 	},
 	{
-		.colorset = HE_COLORSET_MEDIUM,
-		.name	  = "medium",
-		.fg	  = "green",
-		.bg	  = "default",
+		.colorset  = HE_COLORSET_MEDIUM,
+		.name      = "medium",
+		.fb_ground = "green, default",
 	},
 	{
-		.colorset = HE_COLORSET_NORMAL,
-		.name	  = "normal",
-		.fg	  = "default",
-		.bg	  = "default",
+		.colorset  = HE_COLORSET_NORMAL,
+		.name      = "normal",
+		.fb_ground = "default, default",
 	},
 	{
-		.colorset = HE_COLORSET_SELECTED,
-		.name	  = "selected",
-		.fg	  = "black",
-		.bg	  = "yellow",
+		.colorset  = HE_COLORSET_SELECTED,
+		.name      = "selected",
+		.fb_ground = "black, yellow",
 	},
 	{
-		.colorset = HE_COLORSET_JUMP_ARROWS,
-		.name	  = "jump_arrows",
-		.fg	  = "blue",
-		.bg	  = "default",
+		.colorset  = HE_COLORSET_JUMP_ARROWS,
+		.name      = "jump_arrows",
+		.fb_ground = "blue, default",
 	},
 	{
-		.colorset = HE_COLORSET_ADDR,
-		.name	  = "addr",
-		.fg	  = "magenta",
-		.bg	  = "default",
+		.colorset  = HE_COLORSET_ADDR,
+		.name      = "addr",
+		.fb_ground = "magenta, default",
 	},
 	{
-		.colorset = HE_COLORSET_ROOT,
-		.name	  = "root",
-		.fg	  = "white",
-		.bg	  = "blue",
+		.colorset  = HE_COLORSET_ROOT,
+		.name      = "root",
+		.fb_ground = "white, blue",
 	},
 	{
 		.name = NULL,
 	}
 };
 
-
 static int ui_browser__color_config(const char *var, const char *value,
 				    void *data __maybe_unused)
 {
-	char *fg = NULL, *bg;
+	char *fb_ground;
 	int i;
 
 	/* same dir for all commands */
@@ -570,22 +562,18 @@ static int ui_browser__color_config(const char *var, const char *value,
 		if (strcmp(ui_browser__colorsets[i].name, name) != 0)
 			continue;
 
-		fg = strdup(value);
-		if (fg == NULL)
-			break;
+		if (strstr(value, ",") == NULL)
+			return -1;
 
-		bg = strchr(fg, ',');
-		if (bg == NULL)
+		fb_ground = strdup(value);
+		if (fb_ground == NULL)
 			break;
+		ui_browser__colorsets[i].fb_ground = fb_ground;
 
-		*bg = '\0';
-		while (isspace(*++bg));
-		ui_browser__colorsets[i].bg = bg;
-		ui_browser__colorsets[i].fg = fg;
 		return 0;
 	}
 
-	free(fg);
+	free(fb_ground);
 	return -1;
 }
 
@@ -743,8 +731,17 @@ void ui_browser__init(void)
 	perf_config(ui_browser__color_config, NULL);
 
 	while (ui_browser__colorsets[i].name) {
+		char *fb_ground, *fg, *bg;
 		struct ui_browser_colorset *c = &ui_browser__colorsets[i++];
-		sltt_set_color(c->colorset, c->name, c->fg, c->bg);
+
+		fb_ground = strdup(c->fb_ground);
+		if (fg == NULL)
+			break;
+		fg = strtok(fb_ground, ",");
+		bg = strtok(NULL, ",");
+		bg = ltrim(bg);
+		sltt_set_color(c->colorset, c->name, fg, bg);
+		free(fb_ground);
 	}
 
 	annotate_browser__init();
