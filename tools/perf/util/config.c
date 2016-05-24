@@ -28,6 +28,7 @@ static int config_linenr;
 static int config_file_eof;
 
 const char *config_exclusive_filename;
+struct perf_config_set *config_set;
 
 static int get_next_char(void)
 {
@@ -477,54 +478,6 @@ static int perf_config_global(void)
 	return !perf_env_bool("PERF_CONFIG_NOGLOBAL", 0);
 }
 
-int perf_config(config_fn_t fn, void *data)
-{
-	int ret = 0, found = 0;
-	const char *home = NULL;
-
-	/* Setting $PERF_CONFIG makes perf read _only_ the given config file. */
-	if (config_exclusive_filename)
-		return perf_config_from_file(fn, config_exclusive_filename, data);
-	if (perf_config_system() && !access(perf_etc_perfconfig(), R_OK)) {
-		ret += perf_config_from_file(fn, perf_etc_perfconfig(),
-					    data);
-		found += 1;
-	}
-
-	home = getenv("HOME");
-	if (perf_config_global() && home) {
-		char *user_config = strdup(mkpath("%s/.perfconfig", home));
-		struct stat st;
-
-		if (user_config == NULL) {
-			warning("Not enough memory to process %s/.perfconfig, "
-				"ignoring it.", home);
-			goto out;
-		}
-
-		if (stat(user_config, &st) < 0)
-			goto out_free;
-
-		if (st.st_uid && (st.st_uid != geteuid())) {
-			warning("File %s not owned by current user or root, "
-				"ignoring it.", user_config);
-			goto out_free;
-		}
-
-		if (!st.st_size)
-			goto out_free;
-
-		ret += perf_config_from_file(fn, user_config, data);
-		found += 1;
-out_free:
-		free(user_config);
-	}
-out:
-	if (found == 0)
-		return -1;
-	return ret;
-}
-
 static struct perf_config_section *find_section(struct list_head *sections,
 						const char *section_name)
 {
@@ -703,6 +656,55 @@ struct perf_config_set *perf_config_set__new(void)
 	}
 
 	return set;
+}
+
+static int perf_config_set__check(void)
+{
+	if (config_set != NULL)
+		return 0;
+
+	config_set = perf_config_set__new();
+	if (!config_set)
+		return -1;
+
+	return 0;
+}
+
+static int perf_config_set__iter(struct perf_config_set *set, config_fn_t fn, void *data)
+{
+	struct perf_config_section *section;
+	struct perf_config_item *item;
+	struct list_head *sections;
+	char key[BUFSIZ];
+
+	if (set == NULL)
+		return -1;
+
+	sections = &set->sections;
+	if (list_empty(sections))
+		return -1;
+
+	list_for_each_entry(section, sections, node) {
+		list_for_each_entry(item, &section->items, node) {
+			char *value = item->value;
+
+			if (value) {
+				scnprintf(key, sizeof(key), "%s.%s",
+					  section->name, item->name);
+				if (fn(key, value, data) < 0)
+					return -1;
+			}
+		}
+	}
+
+	return 0;
+}
+
+int perf_config(config_fn_t fn, void *data)
+{
+	if (perf_config_set__check() < 0)
+		return -1;
+	return perf_config_set__iter(config_set, fn, data);
 }
 
 static void perf_config_item__delete(struct perf_config_item *item)
