@@ -47,7 +47,6 @@ static int show_config(const char *key, const char *value,
 int cmd_config(int argc, const char **argv, const char *prefix __maybe_unused)
 {
 	int ret = 0;
-	struct perf_config_set *set;
 	char *user_config = mkpath("%s/.perfconfig", getenv("HOME"));
 
 	argc = parse_options(argc, argv, config_options, config_usage,
@@ -65,11 +64,11 @@ int cmd_config(int argc, const char **argv, const char *prefix __maybe_unused)
 	else if (use_user_config)
 		config_exclusive_filename = user_config;
 
-	set = perf_config_set__new();
-	if (!set) {
-		ret = -1;
-		goto out_err;
-	}
+	/*
+	 * Reset config set at only 'config' sub-command
+	 * because of options config file location.
+	 */
+	perf_config_set__delete();
 
 	switch (actions) {
 	case ACTION_LIST:
@@ -92,6 +91,5 @@ int cmd_config(int argc, const char **argv, const char *prefix __maybe_unused)
 	}
 
 	perf_config_set__delete();
-out_err:
 	return ret;
 }
