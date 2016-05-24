@@ -29,6 +29,21 @@ static int config_file_eof;
 
 const char *config_exclusive_filename;
 
+const struct perf_config_section default_sections[] = {
+	{ .name = "colors" },
+};
+
+const struct default_config_item colors_config_items[] = {
+	CONF_STR_VAR("top", "red, default"),
+	CONF_STR_VAR("medium", "green, default"),
+	CONF_STR_VAR("normal", "default, default"),
+	CONF_STR_VAR("selected", "black, yellow"),
+	CONF_STR_VAR("jump_arrows", "blue, default"),
+	CONF_STR_VAR("addr", "magenta, default"),
+	CONF_STR_VAR("root", "white, blue"),
+	CONF_END()
+};
+
 static int get_next_char(void)
 {
 	int c;
@@ -677,7 +692,7 @@ static void perf_config_section__purge(struct perf_config_section *section)
 static void perf_config_section__delete(struct perf_config_section *section)
 {
 	perf_config_section__purge(section);
-	zfree(&section->name);
+	zfree((char **)&section->name);
 	free(section);
 }
 
