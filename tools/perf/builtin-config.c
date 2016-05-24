@@ -106,7 +106,7 @@ int cmd_config(int argc, const char **argv, const char *prefix __maybe_unused)
 		usage_with_options(config_usage, config_options);
 	}
 
-	perf_config_set__delete(set);
+	perf_config_set__delete();
 out_err:
 	return ret;
 }
