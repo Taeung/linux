@@ -80,6 +80,7 @@ struct pager_config {
 static void perf_default_config_init(void)
 {
 	default_colors_config_init();
+	default_annotate_config_init();
 }
 
 static int pager_command_config(const char *var, const char *value, void *data)
