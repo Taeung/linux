@@ -642,7 +642,7 @@ static int collect_config(const char *var, const char *value,
 
 out_free:
 	free(key);
-	perf_config_set__delete(set);
+	perf_config_set__delete();
 	return -1;
 }
 
@@ -740,10 +740,10 @@ static void perf_config_set__purge(struct perf_config_set *set)
 	}
 }
 
-void perf_config_set__delete(struct perf_config_set *set)
+void perf_config_set__delete(void)
 {
-	perf_config_set__purge(set);
-	free(set);
+	perf_config_set__purge(config_set);
+	zfree(&config_set);
 }
 
 /*
