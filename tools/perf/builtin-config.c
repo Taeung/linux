@@ -64,6 +64,12 @@ int cmd_config(int argc, const char **argv, const char *prefix __maybe_unused)
 	else if (use_user_config)
 		config_exclusive_filename = user_config;
 
+	/*
+	 * Reset the config set at only 'config' sub-command
+	 * because of options config file location.
+	 */
+	perf_config_set__delete();
+
 	switch (actions) {
 	case ACTION_LIST:
 		if (argc) {
