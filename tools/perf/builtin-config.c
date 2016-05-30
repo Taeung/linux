@@ -33,28 +33,13 @@ static struct option config_options[] = {
 	OPT_END()
 };
 
-static int show_config(struct perf_config_set *set)
+static int show_config(const char *key, const char *value,
+		       void *cb __maybe_unused)
 {
-	struct perf_config_section *section;
-	struct perf_config_item *item;
-	struct list_head *sections;
-
-	if (set == NULL)
-		return -1;
-
-	sections = &set->sections;
-	if (list_empty(sections))
-		return -1;
-
-	list_for_each_entry(section, sections, node) {
-		list_for_each_entry(item, &section->items, node) {
-			char *value = item->value;
-
-			if (value)
-				printf("%s.%s=%s\n", section->name,
-				       item->name, value);
-		}
-	}
+	if (value)
+		printf("%s=%s\n", key, value);
+	else
+		printf("%s\n", key);
 
 	return 0;
 }
@@ -91,7 +76,7 @@ int cmd_config(int argc, const char **argv, const char *prefix __maybe_unused)
 			pr_err("Error: takes no arguments\n");
 			parse_options_usage(config_usage, config_options, "l", 1);
 		} else {
-			ret = show_config(config_set);
+			ret = perf_config(show_config, NULL);
 			if (ret < 0) {
 				const char * config_filename = config_exclusive_filename;
 				if (!config_exclusive_filename)
