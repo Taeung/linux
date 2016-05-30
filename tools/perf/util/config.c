@@ -28,6 +28,7 @@ static int config_linenr;
 static int config_file_eof;
 
 const char *config_exclusive_filename;
+struct perf_config_set *config_set;
 
 static int get_next_char(void)
 {
