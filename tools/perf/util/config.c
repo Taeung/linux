@@ -639,7 +639,6 @@ static int collect_config(const char *var, const char *value,
 
 out_free:
 	free(key);
-	perf_config_set__delete(set);
 	return -1;
 }
 
@@ -649,7 +648,8 @@ struct perf_config_set *perf_config_set__new(void)
 
 	if (set) {
 		INIT_LIST_HEAD(&set->sections);
-		perf_config(collect_config, set);
+		if (perf_config(collect_config, set) < 0)
+			perf_config_set__delete(set);
 	}
 
 	return set;
