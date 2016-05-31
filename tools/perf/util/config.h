@@ -23,6 +23,6 @@ struct perf_config_set {
 extern struct perf_config_set *config_set;
 
 struct perf_config_set *perf_config_set__new(void);
-void perf_config_set__delete(struct perf_config_set *set);
+void perf_config_set__delete(struct perf_config_set **set);
 
 #endif /* __PERF_CONFIG_H */
