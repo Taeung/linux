@@ -62,7 +62,6 @@ static int show_config(struct perf_config_set *set)
 int cmd_config(int argc, const char **argv, const char *prefix __maybe_unused)
 {
 	int ret = 0;
-	struct perf_config_set *set;
 	char *user_config = mkpath("%s/.perfconfig", getenv("HOME"));
 
 	argc = parse_options(argc, argv, config_options, config_usage,
@@ -80,8 +79,8 @@ int cmd_config(int argc, const char **argv, const char *prefix __maybe_unused)
 	else if (use_user_config)
 		config_exclusive_filename = user_config;
 
-	set = perf_config_set__new();
-	if (!set) {
+	config_set = perf_config_set__new();
+	if (!config_set) {
 		ret = -1;
 		goto out_err;
 	}
@@ -92,7 +91,7 @@ int cmd_config(int argc, const char **argv, const char *prefix __maybe_unused)
 			pr_err("Error: takes no arguments\n");
 			parse_options_usage(config_usage, config_options, "l", 1);
 		} else {
-			ret = show_config(set);
+			ret = show_config(config_set);
 			if (ret < 0) {
 				const char * config_filename = config_exclusive_filename;
 				if (!config_exclusive_filename)
@@ -106,7 +105,7 @@ int cmd_config(int argc, const char **argv, const char *prefix __maybe_unused)
 		usage_with_options(config_usage, config_options);
 	}
 
-	perf_config_set__delete(set);
+	perf_config_set__delete(config_set);
 out_err:
 	return ret;
 }
