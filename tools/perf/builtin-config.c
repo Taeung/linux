@@ -79,6 +79,11 @@ int cmd_config(int argc, const char **argv, const char *prefix __maybe_unused)
 	else if (use_user_config)
 		config_exclusive_filename = user_config;
 
+	/*
+	 * Reset the config set at only 'config' sub-command
+	 * because of reinitializing with options config file location.
+	 */
+	perf_config_set__delete(&config_set);
 	config_set = perf_config_set__new();
 	if (!config_set) {
 		ret = -1;
