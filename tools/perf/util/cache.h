@@ -7,6 +7,7 @@
 #include <subcmd/pager.h>
 #include "../perf.h"
 #include "../ui/ui.h"
+#include "config.h"
 
 #include <linux/string.h>
 
