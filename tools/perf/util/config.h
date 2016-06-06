@@ -20,6 +20,8 @@ struct perf_config_set {
 	struct list_head sections;
 };
 
+extern struct perf_config_set *config_set;
+
 struct perf_config_set *perf_config_set__new(void);
 void perf_config_set__delete(struct perf_config_set *set);
 
