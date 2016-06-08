@@ -34,6 +34,6 @@ const char *perf_config_dirname(const char *, const char *);
 const char *perf_etc_perfconfig(void);
 
 struct perf_config_set *perf_config_set__new(void);
-void perf_config_set__delete(struct perf_config_set *set);
+void perf_config_set__delete(struct perf_config_set **set);
 
 #endif /* __PERF_CONFIG_H */

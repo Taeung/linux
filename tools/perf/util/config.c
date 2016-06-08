@@ -654,7 +654,7 @@ struct perf_config_set *perf_config_set__new(void)
 	if (set) {
 		INIT_LIST_HEAD(&set->sections);
 		if (perf_config_set__init(set) < 0) {
-			perf_config_set__delete(set);
+			perf_config_set__delete(&set);
 			set = NULL;
 		}
 	}
@@ -737,13 +737,13 @@ static void perf_config_set__purge(struct perf_config_set *set)
 	}
 }
 
-void perf_config_set__delete(struct perf_config_set *set)
+void perf_config_set__delete(struct perf_config_set **set)
 {
-	if (set == NULL)
+	if (*set == NULL)
 		return;
 
-	perf_config_set__purge(set);
-	free(set);
+	perf_config_set__purge(*set);
+	zfree(set);
 }
 
 /*
