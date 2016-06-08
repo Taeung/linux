@@ -21,6 +21,7 @@ struct perf_config_set {
 };
 
 extern const char *config_exclusive_filename;
+extern struct perf_config_set *config_set;
 
 typedef int (*config_fn_t)(const char *, const char *, void *);
 int perf_default_config(const char *, const char *, void *);
