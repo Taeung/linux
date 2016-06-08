@@ -662,7 +662,7 @@ struct perf_config_set *perf_config_set__new(void)
 	return set;
 }
 
-static int perf_config_set__iter(struct perf_config_set *set, config_fn_t fn, void *data)
+int perf_config_set__iter(struct perf_config_set *set, config_fn_t fn, void *data)
 {
 	struct perf_config_section *section;
 	struct perf_config_item *item;

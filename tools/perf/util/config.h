@@ -35,5 +35,6 @@ const char *perf_etc_perfconfig(void);
 
 struct perf_config_set *perf_config_set__new(void);
 void perf_config_set__delete(struct perf_config_set **set);
+int perf_config_set__iter(struct perf_config_set *set, config_fn_t fn, void *data);
 
 #endif /* __PERF_CONFIG_H */
