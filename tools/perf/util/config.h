@@ -34,5 +34,34 @@ const char *perf_etc_perfconfig(void);
 
 struct perf_config_set *perf_config_set__new(void);
 void perf_config_set__delete(struct perf_config_set *set);
+void perf_config_init(void);
+void perf_config_finish(void);
+void perf_config_refresh(void);
+
+/**
+ * config_sections__for_each - iterate thru all the sections
+ * @list: list_head instance to iterate
+ * @section: struct perf_config_section iterator
+ */
+#define config_sections__for_each(list, section)	\
+        list_for_each_entry(section, list, node)
+
+/**
+ * config_items__for_each - iterate thru all the items
+ * @list: list_head instance to iterate
+ * @item: struct perf_config_item iterator
+ */
+#define config_items__for_each(list, item)	\
+        list_for_each_entry(item, list, node)
+
+/**
+ * config_set__for_each - iterate thru all the config section-item pairs
+ * @set: evlist instance to iterate
+ * @section: struct perf_config_section iterator
+ * @item: struct perf_config_item iterator
+ */
+#define config_set__for_each(set, section, item)			\
+	config_sections__for_each(&set->sections, section)		\
+	config_items__for_each(&section->items, item)
 
 #endif /* __PERF_CONFIG_H */
