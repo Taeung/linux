@@ -41,8 +41,19 @@ const struct default_config_item colors_config_items[] = {
 	CONF_END()
 };
 
+const struct default_config_item annotate_config_items[] = {
+	CONF_BOOL_VAR("hide_src_code", false),
+	CONF_BOOL_VAR("use_offset", true),
+	CONF_BOOL_VAR("jump_arrows", true),
+	CONF_BOOL_VAR("show_nr_jumps", false),
+	CONF_BOOL_VAR("show_linenr", false),
+	CONF_BOOL_VAR("show_total_period", false),
+	CONF_END()
+};
+
 const struct default_config_section default_sections[] = {
 	{ .name = "colors", .items = colors_config_items },
+	{ .name = "annotate", .items = annotate_config_items },
 };
 
 static int get_next_char(void)
