@@ -503,61 +503,53 @@ unsigned int ui_browser__list_head_refresh(struct ui_browser *browser)
 }
 
 static struct ui_browser_colorset {
-	const char *name, *fg, *bg;
+	const char *name, *fore_back_colors;
 	int colorset;
 } ui_browser__colorsets[] = {
 	{
-		.colorset = HE_COLORSET_TOP,
-		.name	  = "top",
-		.fg	  = "red",
-		.bg	  = "default",
+		.colorset  = HE_COLORSET_TOP,
+		.name      = "top",
+		.fore_back_colors = "red, default",
 	},
 	{
-		.colorset = HE_COLORSET_MEDIUM,
-		.name	  = "medium",
-		.fg	  = "green",
-		.bg	  = "default",
+		.colorset  = HE_COLORSET_MEDIUM,
+		.name      = "medium",
+		.fore_back_colors = "green, default",
 	},
 	{
-		.colorset = HE_COLORSET_NORMAL,
-		.name	  = "normal",
-		.fg	  = "default",
-		.bg	  = "default",
+		.colorset  = HE_COLORSET_NORMAL,
+		.name      = "normal",
+		.fore_back_colors = "default, default",
 	},
 	{
-		.colorset = HE_COLORSET_SELECTED,
-		.name	  = "selected",
-		.fg	  = "black",
-		.bg	  = "yellow",
+		.colorset  = HE_COLORSET_SELECTED,
+		.name      = "selected",
+		.fore_back_colors = "black, yellow",
 	},
 	{
-		.colorset = HE_COLORSET_JUMP_ARROWS,
-		.name	  = "jump_arrows",
-		.fg	  = "blue",
-		.bg	  = "default",
+		.colorset  = HE_COLORSET_JUMP_ARROWS,
+		.name      = "jump_arrows",
+		.fore_back_colors = "blue, default",
 	},
 	{
-		.colorset = HE_COLORSET_ADDR,
-		.name	  = "addr",
-		.fg	  = "magenta",
-		.bg	  = "default",
+		.colorset  = HE_COLORSET_ADDR,
+		.name      = "addr",
+		.fore_back_colors = "magenta, default",
 	},
 	{
-		.colorset = HE_COLORSET_ROOT,
-		.name	  = "root",
-		.fg	  = "white",
-		.bg	  = "blue",
+		.colorset  = HE_COLORSET_ROOT,
+		.name      = "root",
+		.fore_back_colors = "white, blue",
 	},
 	{
 		.name = NULL,
 	}
 };
 
-
 static int ui_browser__color_config(const char *var, const char *value,
 				    void *data __maybe_unused)
 {
-	char *fg = NULL, *bg;
+	char *fore_back_colors;
 	int i;
 
 	/* same dir for all commands */
@@ -570,22 +562,18 @@ static int ui_browser__color_config(const char *var, const char *value,
 		if (strcmp(ui_browser__colorsets[i].name, name) != 0)
 			continue;
 
-		fg = strdup(value);
-		if (fg == NULL)
-			break;
+		if (strstr(value, ",") == NULL)
+			return -1;
 
-		bg = strchr(fg, ',');
-		if (bg == NULL)
+		fore_back_colors = strdup(value);
+		if (fore_back_colors == NULL)
 			break;
+		ui_browser__colorsets[i].fore_back_colors = fore_back_colors;
 
-		*bg = '\0';
-		while (isspace(*++bg));
-		ui_browser__colorsets[i].bg = bg;
-		ui_browser__colorsets[i].fg = fg;
 		return 0;
 	}
 
-	free(fg);
+	free(fore_back_colors);
 	return -1;
 }
 
@@ -743,8 +731,17 @@ void ui_browser__init(void)
 	perf_config(ui_browser__color_config, NULL);
 
 	while (ui_browser__colorsets[i].name) {
+		char *fore_back_colors, *fg, *bg;
 		struct ui_browser_colorset *c = &ui_browser__colorsets[i++];
-		sltt_set_color(c->colorset, c->name, c->fg, c->bg);
+
+		fore_back_colors = strdup(c->fore_back_colors);
+		if (fg == NULL)
+			break;
+		fg = strtok(fore_back_colors, ",");
+		bg = strtok(NULL, ",");
+		bg = ltrim(bg);
+		sltt_set_color(c->colorset, c->name, fg, bg);
+		free(fore_back_colors);
 	}
 
 	annotate_browser__init();
