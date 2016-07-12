@@ -507,39 +507,32 @@ static struct ui_browser_colorset {
 	int colorset;
 } ui_browser__colorsets[] = {
 	{
-		.colorset  = HE_COLORSET_TOP,
-		.name      = "top",
-		.fore_back_colors = "red, default",
+		.colorset = HE_COLORSET_TOP,
+		.name	  = "top",
 	},
 	{
-		.colorset  = HE_COLORSET_MEDIUM,
-		.name      = "medium",
-		.fore_back_colors = "green, default",
+		.colorset = HE_COLORSET_MEDIUM,
+		.name	  = "medium",
 	},
 	{
-		.colorset  = HE_COLORSET_NORMAL,
-		.name      = "normal",
-		.fore_back_colors = "default, default",
+		.colorset = HE_COLORSET_NORMAL,
+		.name	  = "normal",
 	},
 	{
-		.colorset  = HE_COLORSET_SELECTED,
-		.name      = "selected",
-		.fore_back_colors = "black, yellow",
+		.colorset = HE_COLORSET_SELECTED,
+		.name	  = "selected",
 	},
 	{
-		.colorset  = HE_COLORSET_JUMP_ARROWS,
-		.name      = "jump_arrows",
-		.fore_back_colors = "blue, default",
+		.colorset = HE_COLORSET_JUMP_ARROWS,
+		.name	  = "jump_arrows",
 	},
 	{
-		.colorset  = HE_COLORSET_ADDR,
-		.name      = "addr",
-		.fore_back_colors = "magenta, default",
+		.colorset = HE_COLORSET_ADDR,
+		.name	  = "addr",
 	},
 	{
-		.colorset  = HE_COLORSET_ROOT,
-		.name      = "root",
-		.fore_back_colors = "white, blue",
+		.colorset = HE_COLORSET_ROOT,
+		.name	  = "root",
 	},
 	{
 		.name = NULL,
@@ -724,10 +717,28 @@ void __ui_browser__line_arrow(struct ui_browser *browser, unsigned int column,
 		__ui_browser__line_arrow_down(browser, column, start, end);
 }
 
+static void default_colors_config_init(void)
+{
+	int i, j;
+
+	for (i = 0; ui_browser__colorsets[i].name != NULL; ++i) {
+		const char *name = ui_browser__colorsets[i].name;
+
+		for (j = 0; colors_config_items[j].name != NULL; j++) {
+			if (!strcmp(name, colors_config_items[j].name)) {
+				ui_browser__colorsets[i].fore_back_colors =
+					colors_config_items[j].value.s;
+				break;
+			}
+		}
+	}
+}
+
 void ui_browser__init(void)
 {
 	int i = 0;
 
+	default_colors_config_init();
 	perf_config(ui_browser__color_config, NULL);
 
 	while (ui_browser__colorsets[i].name) {
