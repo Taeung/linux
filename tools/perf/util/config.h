@@ -136,6 +136,12 @@ struct default_config_section {
 #define CONF_END()					\
 	{ .name = NULL }
 
+#define CONF_DEFAULT_VAL(section, name, field)			\
+	section##_config_items[CONFIG_##name].value.field
+
+#define CONF_ANNOTATE_DEFAULT_VAL(name, field)			\
+	CONF_DEFAULT_VAL(annotate, ANNOTATE_##name, field)
+
 extern const struct default_config_item colors_config_items[];
 extern const struct default_config_item annotate_config_items[];
 
