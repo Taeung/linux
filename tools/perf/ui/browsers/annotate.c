@@ -38,10 +38,7 @@ static struct annotate_browser_opt {
 	     show_linenr,
 	     show_nr_jumps,
 	     show_total_period;
-} annotate_browser__opts = {
-	.use_offset	= true,
-	.jump_arrows	= true,
-};
+} annotate_browser__opts;
 
 struct annotate_browser {
 	struct ui_browser b;
@@ -1160,7 +1157,18 @@ static int annotate__config(const char *var, const char *value,
 	return 0;
 }
 
+static void default_annotate_config_init(void)
+{
+	annotate_browser__opts.hide_src_code = CONF_DEFAULT_BOOL(ANNOTATE, HIDE_SRC_CODE);
+	annotate_browser__opts.use_offset = CONF_DEFAULT_BOOL(ANNOTATE, USE_OFFSET);
+	annotate_browser__opts.jump_arrows = CONF_DEFAULT_BOOL(ANNOTATE, JUMP_ARROWS);
+	annotate_browser__opts.show_linenr = CONF_DEFAULT_BOOL(ANNOTATE, SHOW_LINENR);
+	annotate_browser__opts.show_nr_jumps = CONF_DEFAULT_BOOL(ANNOTATE, SHOW_NR_JUMPS);
+	annotate_browser__opts.show_total_period = CONF_DEFAULT_BOOL(ANNOTATE, SHOW_TOTAL_PERIOD);
+}
+
 void annotate_browser__init(void)
 {
+	default_annotate_config_init();
 	perf_config(annotate__config, NULL);
 }
