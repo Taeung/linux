@@ -73,6 +73,20 @@ enum perf_config_type {
 	CONFIG_TYPE_STRING
 };
 
+enum config_section_idx {
+	CONFIG_COLORS,
+};
+
+enum colors_config_items_idx {
+	CONFIG_COLORS_TOP,
+	CONFIG_COLORS_MEDIUM,
+	CONFIG_COLORS_NORMAL,
+	CONFIG_COLORS_SELECTED,
+	CONFIG_COLORS_JUMP_ARROWS,
+	CONFIG_COLORS_ADDR,
+	CONFIG_COLORS_ROOT,
+};
+
 struct default_config_item {
 	const char *name;
 	union {
@@ -111,5 +125,8 @@ struct default_config_section {
 	CONF_VAR(_name, s, _val, CONFIG_TYPE_STRING)
 #define CONF_END()					\
 	{ .name = NULL }
+
+extern const struct default_config_section default_sections[];
+extern const struct default_config_item colors_config_items[];
 
 #endif /* __PERF_CONFIG_H */

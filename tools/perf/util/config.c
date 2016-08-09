@@ -30,6 +30,21 @@ static struct perf_config_set *config_set;
 
 const char *config_exclusive_filename;
 
+const struct default_config_item colors_config_items[] = {
+	CONF_STR_VAR("top", "red, default"),
+	CONF_STR_VAR("medium", "green, default"),
+	CONF_STR_VAR("normal", "default, default"),
+	CONF_STR_VAR("selected", "black, yellow"),
+	CONF_STR_VAR("jump_arrows", "blue, default"),
+	CONF_STR_VAR("addr", "magenta, default"),
+	CONF_STR_VAR("root", "white, blue"),
+	CONF_END()
+};
+
+const struct default_config_section default_sections[] = {
+	{ .name = "colors", .items = colors_config_items },
+};
+
 static int get_next_char(void)
 {
 	int c;
