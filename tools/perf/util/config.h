@@ -75,6 +75,7 @@ enum perf_config_type {
 
 enum config_section_idx {
 	CONFIG_COLORS,
+	CONFIG_ANNOTATE,
 };
 
 enum colors_config_items_idx {
@@ -85,6 +86,15 @@ enum colors_config_items_idx {
 	CONFIG_COLORS_JUMP_ARROWS,
 	CONFIG_COLORS_ADDR,
 	CONFIG_COLORS_ROOT,
+};
+
+enum annotate_config_items_idx {
+	CONFIG_ANNOTATE_HIDE_SRC_CODE,
+	CONFIG_ANNOTATE_USE_OFFSET,
+	CONFIG_ANNOTATE_JUMP_ARROWS,
+	CONFIG_ANNOTATE_SHOW_NR_JUMPS,
+	CONFIG_ANNOTATE_SHOW_LINENR,
+	CONFIG_ANNOTATE_SHOW_TOTAL_PERIOD,
 };
 
 struct default_config_item {
@@ -128,5 +138,6 @@ struct default_config_section {
 
 extern const struct default_config_section default_sections[];
 extern const struct default_config_item colors_config_items[];
+extern const struct default_config_item annotate_config_items[];
 
 #endif /* __PERF_CONFIG_H */
