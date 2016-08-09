@@ -136,6 +136,9 @@ struct default_config_section {
 #define CONF_END()					\
 	{ .name = NULL }
 
+#define CONF_DEFAULT_BOOL(sec, name)					\
+	default_sections[CONFIG_##sec].items[CONFIG_##sec##_##name].value.b
+
 extern const struct default_config_section default_sections[];
 extern const struct default_config_item colors_config_items[];
 extern const struct default_config_item annotate_config_items[];
