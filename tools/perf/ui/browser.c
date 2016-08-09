@@ -509,37 +509,30 @@ static struct ui_browser_colorset {
 	{
 		.colorset = HE_COLORSET_TOP,
 		.name	  = "top",
-		.colors	  = "red, default",
 	},
 	{
 		.colorset = HE_COLORSET_MEDIUM,
 		.name	  = "medium",
-		.colors	  = "green, default",
 	},
 	{
 		.colorset = HE_COLORSET_NORMAL,
 		.name	  = "normal",
-		.colors	  = "default, default",
 	},
 	{
 		.colorset = HE_COLORSET_SELECTED,
 		.name	  = "selected",
-		.colors	  = "black, yellow",
 	},
 	{
 		.colorset = HE_COLORSET_JUMP_ARROWS,
 		.name	  = "jump_arrows",
-		.colors	  = "blue, default",
 	},
 	{
 		.colorset = HE_COLORSET_ADDR,
 		.name	  = "addr",
-		.colors	  = "magenta, default",
 	},
 	{
 		.colorset = HE_COLORSET_ROOT,
 		.name	  = "root",
-		.colors	  = "white, blue",
 	},
 	{
 		.name = NULL,
@@ -724,10 +717,28 @@ void __ui_browser__line_arrow(struct ui_browser *browser, unsigned int column,
 		__ui_browser__line_arrow_down(browser, column, start, end);
 }
 
+static void default_colors_config_init(void)
+{
+	int i, j;
+
+	for (i = 0; ui_browser__colorsets[i].name != NULL; ++i) {
+		const char *name = ui_browser__colorsets[i].name;
+
+		for (j = 0; colors_config_items[j].name != NULL; j++) {
+			if (!strcmp(name, colors_config_items[j].name)) {
+				ui_browser__colorsets[i].colors =
+					colors_config_items[j].value.s;
+				break;
+			}
+		}
+	}
+}
+
 void ui_browser__init(void)
 {
 	int i = 0;
 
+	default_colors_config_init();
 	perf_config(ui_browser__color_config, NULL);
 
 	while (ui_browser__colorsets[i].name) {
