@@ -63,4 +63,33 @@ void perf_config__refresh(void);
 	perf_config_sections__for_each_entry(&set->sections, section)		\
 	perf_config_items__for_each_entry(&section->items, item)
 
+enum perf_config_type {
+	CONFIG_TYPE_BOOL,
+	CONFIG_TYPE_INT,
+	CONFIG_TYPE_LONG,
+	CONFIG_TYPE_U64,
+	CONFIG_TYPE_FLOAT,
+	CONFIG_TYPE_DOUBLE,
+	CONFIG_TYPE_STRING
+};
+
+struct default_config_item {
+	const char *name;
+	union {
+		bool b;
+		int i;
+		u32 l;
+		u64 ll;
+		float f;
+		double d;
+		const char *s;
+	} value;
+	enum perf_config_type type;
+};
+
+struct default_config_section {
+	const char *name;
+	const struct default_config_item *items;
+};
+
 #endif /* __PERF_CONFIG_H */
