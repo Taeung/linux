@@ -82,6 +82,38 @@ static int show_config(struct perf_config_set *set)
 	return 0;
 }
 
+static int parse_config_arg(const char *arg, char **var)
+{
+	const char *last_dot;
+	char *key;
+
+	key = strdup(arg);
+	if (!key) {
+		pr_err("%s: strdup failed\n", __func__);
+		return -1;
+	}
+
+	last_dot = strchr(key, '.');
+	/*
+	 * Since "key" actually contains the section name and the real
+	 * config variable name separated by a dot, we have to know where the dot is.
+	 */
+	if (last_dot == NULL || last_dot == key) {
+		pr_err("The config variable does not contain a section: %s\n", arg);
+		goto out_err;
+	}
+	if (!last_dot[1]) {
+		pr_err("The config varible does not contain variable name: %s\n", arg);
+		goto out_err;
+	}
+
+	*var = key;
+	return 0;
+out_err:
+	free(key);
+	return -1;
+}
+
 int cmd_config(int argc, const char **argv, const char *prefix __maybe_unused)
 {
 	int i, ret = 0;
@@ -135,8 +167,14 @@ int cmd_config(int argc, const char **argv, const char *prefix __maybe_unused)
 			break;
 		}
 
-		for (i = 0; argv[i]; i++)
-			ret = show_spec_config(set, argv[i]);
+		for (i = 0; argv[i]; i++) {
+			char *var = NULL;
+
+			if (parse_config_arg(argv[i], &var) < 0)
+				break;
+			ret = show_spec_config(set, var);
+			free(var);
+		}
 	}
 
 	perf_config_set__delete(set);
