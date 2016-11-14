@@ -82,10 +82,10 @@ static int show_config(struct perf_config_set *set)
 	return 0;
 }
 
-static int parse_config_arg(const char *arg, char **var)
+static int parse_config_arg(const char *arg, char **var, char **value)
 {
 	const char *last_dot;
-	char *key;
+	char *key, *val;
 
 	key = strdup(arg);
 	if (!key) {
@@ -107,7 +107,37 @@ static int parse_config_arg(const char *arg, char **var)
 		goto out_err;
 	}
 
-	*var = key;
+	val = strchr(key, '=');
+	if (val == NULL) {
+		*var = key;
+		return 0;
+	} else if (!strcmp(val, "=")) {
+		pr_err("The config variable does not contain a value: %s\n", arg);
+		goto out_err;
+	} else {
+		char *v, *ptr;
+
+		*value = strdup(val + 1); /* excluding a first character '=' */
+		if (*value == NULL) {
+			pr_err("%s: strdup failed\n", __func__);
+			goto out_err;
+		}
+
+		ptr = key;
+		v = strsep(&key, "=");
+		if (v[0] == '\0') {
+			pr_err("invalid config variable: %s\n", arg);
+			goto out_err;
+		}
+
+		*var = strdup(v);
+		free(ptr);
+		if (*var == NULL) {
+			pr_err("%s: strdup failed\n", __func__);
+			return -1;
+		}
+	}
+
 	return 0;
 out_err:
 	free(key);
@@ -169,11 +199,14 @@ int cmd_config(int argc, const char **argv, const char *prefix __maybe_unused)
 
 		for (i = 0; argv[i]; i++) {
 			char *var = NULL;
+			char *value = NULL;
 
-			if (parse_config_arg(argv[i], &var) < 0)
+			if (parse_config_arg(argv[i], &var, &value) < 0)
 				break;
-			ret = show_spec_config(set, var);
+			if (value == NULL)
+				ret = show_spec_config(set, var);
 			free(var);
+			free(value);
 		}
 	}
 
