@@ -17,7 +17,7 @@
 static bool use_system_config, use_user_config;
 
 static const char * const config_usage[] = {
-	"perf config [<file-option>] [options] [section.name ...]",
+	"perf config [<file-option>] [options] [section.name[=value] ...]",
 	NULL
 };
 
@@ -32,6 +32,37 @@ static struct option config_options[] = {
 	OPT_BOOLEAN(0, "user", &use_user_config, "use user config file"),
 	OPT_END()
 };
+
+static int set_config(struct perf_config_set *set, const char *file_name,
+		      const char *var, const char *value)
+{
+	struct perf_config_section *section = NULL;
+	struct perf_config_item *item = NULL;
+	const char *first_line = "# this file is auto-generated.";
+	FILE *fp = fopen(file_name, "w");
+
+	if (!fp)
+		return -1;
+	if (set == NULL)
+		return -1;
+
+	perf_config_set__collect(set, var, value);
+	fprintf(fp, "%s\n", first_line);
+
+	/* overwrite configvariables */
+	perf_config_items__for_each_entry(&set->sections, section) {
+		fprintf(fp, "[%s]\n", section->name);
+
+		perf_config_items__for_each_entry(&section->items, item) {
+			if (item->value)
+				fprintf(fp, "\t%s = %s\n",
+					item->name, item->value);
+		}
+	}
+	fclose(fp);
+
+	return 0;
+}
 
 static int show_spec_config(struct perf_config_set *set, const char *var)
 {
@@ -205,6 +236,13 @@ int cmd_config(int argc, const char **argv, const char *prefix __maybe_unused)
 				break;
 			if (value == NULL)
 				ret = show_spec_config(set, var);
+			else {
+				const char *config_filename = config_exclusive_filename;
+
+				if (!config_exclusive_filename)
+					config_filename = user_config;
+				ret = set_config(set, config_filename, var, value);
+			}
 			free(var);
 			free(value);
 		}
