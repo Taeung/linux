@@ -17,6 +17,7 @@
 #include "evlist.h"
 #include "target.h"
 #include "thread_map.h"
+#include "util/config.h"
 
 
 #define DEFAULT_TRACER  "function_graph"
@@ -198,6 +199,23 @@ out:
 	return done ? 0 : -1;
 }
 
+static int perf_ftrace_config(const char *var, const char *value, void *cb)
+{
+	struct perf_ftrace *ftrace = cb;
+
+	if (!strcmp(var, "ftrace.tracer")) {
+		if (!strcmp(value, "function_graph"))
+			ftrace->tracer = DEFAULT_TRACER;
+		else if (!strcmp(value, "function"))
+			ftrace->tracer = "function";
+		else
+			return -1;
+		return 0;
+	}
+
+	return 0;
+}
+
 int cmd_ftrace(int argc, const char **argv, const char *prefix __maybe_unused)
 {
 	int ret;
@@ -217,6 +235,8 @@ int cmd_ftrace(int argc, const char **argv, const char *prefix __maybe_unused)
 		 "be more verbose"),
 	OPT_END()
 	};
+
+	perf_config(perf_ftrace_config, &ftrace);
 
 	argc = parse_options(argc, argv, ftrace_options, ftrace_usage,
 			    PARSE_OPT_STOP_AT_NON_OPTION);
