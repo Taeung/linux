@@ -54,8 +54,12 @@ static int write_tracing_file(const char *name, const char *val)
 {
 	char *file;
 	int fd, ret = -1;
-	ssize_t size = strlen(val);
+	ssize_t size;
 
+	if (val == NULL)
+		return -1;
+
+	size = strlen(val);
 	file = get_tracing_file(name);
 	if (!file) {
 		pr_debug("cannot get tracing file: %s\n", name);
