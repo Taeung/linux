@@ -211,6 +211,8 @@ struct tracepoint_path *tracepoint_id_to_path(u64 config)
 				closedir(evt_dir);
 				closedir(sys_dir);
 				path = zalloc(sizeof(*path));
+				if (!path)
+					return NULL;
 				path->system = malloc(MAX_EVENT_LENGTH);
 				if (!path->system) {
 					free(path);
@@ -252,8 +254,7 @@ struct tracepoint_path *tracepoint_name_to_path(const char *name)
 	if (path->system == NULL || path->name == NULL) {
 		zfree(&path->system);
 		zfree(&path->name);
-		free(path);
-		path = NULL;
+		zfree(&path);
 	}
 
 	return path;
@@ -1477,10 +1478,9 @@ static void perf_pmu__parse_cleanup(void)
 
 		for (i = 0; i < perf_pmu_events_list_num; i++) {
 			p = perf_pmu_events_list + i;
-			free(p->symbol);
+			zfree(&p->symbol);
 		}
-		free(perf_pmu_events_list);
-		perf_pmu_events_list = NULL;
+		zfree(&perf_pmu_events_list);
 		perf_pmu_events_list_num = 0;
 	}
 }
@@ -1563,7 +1563,7 @@ perf_pmu__parse_check(const char *name)
 	r = bsearch(&p, perf_pmu_events_list,
 			(size_t) perf_pmu_events_list_num,
 			sizeof(struct perf_pmu_event_symbol), comp_pmu);
-	free(p.symbol);
+	zfree(&p.symbol);
 	return r ? r->type : PMU_EVENT_SYMBOL_ERR;
 }
 
@@ -1710,8 +1710,8 @@ static void parse_events_print_error(struct parse_events_error *err,
 		fprintf(stderr, "%*s\\___ %s\n", idx + 1, "", err->str);
 		if (err->help)
 			fprintf(stderr, "\n%s\n", err->help);
-		free(err->str);
-		free(err->help);
+		zfree(&err->str);
+		zfree(&err->help);
 	}
 
 	fprintf(stderr, "Run 'perf list' for a list of valid events\n");
@@ -2406,7 +2406,7 @@ void parse_events_terms__purge(struct list_head *terms)
 
 	list_for_each_entry_safe(term, h, terms, list) {
 		if (term->array.nr_ranges)
-			free(term->array.ranges);
+			zfree(&term->array.ranges);
 		list_del_init(&term->list);
 		free(term);
 	}
@@ -2422,7 +2422,7 @@ void parse_events_terms__delete(struct list_head *terms)
 
 void parse_events__clear_array(struct parse_events_array *a)
 {
-	free(a->ranges);
+	zfree(&a->ranges);
 }
 
 void parse_events_evlist_error(struct parse_events_evlist *data,
