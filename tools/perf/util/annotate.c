@@ -812,7 +812,7 @@ out_free_name:
 }
 
 static struct disasm_line *disasm_line__new(s64 offset, char *line,
-					    size_t privsize, int line_nr,
+					    size_t privsize,
 					    struct arch *arch,
 					    struct map *map)
 {
@@ -821,7 +821,7 @@ static struct disasm_line *disasm_line__new(s64 offset, char *line,
 	if (dl != NULL) {
 		dl->offset = offset;
 		dl->line = strdup(line);
-		dl->line_nr = line_nr;
+
 		if (dl->line == NULL)
 			goto out_delete;
 
@@ -1133,8 +1133,7 @@ static int disasm_line__print(struct disasm_line *dl, struct symbol *sym, u64 st
  */
 static int symbol__parse_objdump_line(struct symbol *sym, struct map *map,
 				      struct arch *arch,
-				      FILE *file, size_t privsize,
-				      int *line_nr)
+				      FILE *file, size_t privsize)
 {
 	struct annotation *notes = symbol__annotation(sym);
 	struct disasm_line *dl;
@@ -1188,9 +1187,8 @@ static int symbol__parse_objdump_line(struct symbol *sym, struct map *map,
 			parsed_line = tmp2 + 1;
 	}
 
-	dl = disasm_line__new(offset, parsed_line, privsize, *line_nr, arch, map);
+	dl = disasm_line__new(offset, parsed_line, privsize, arch, map);
 	free(line);
-	(*line_nr)++;
 
 	if (dl == NULL)
 		return -1;
@@ -1338,7 +1336,6 @@ int symbol__disassemble(struct symbol *sym, struct map *map, const char *arch_na
 	struct kcore_extract kce;
 	bool delete_extract = false;
 	int stdout_fd[2];
-	int lineno = 0;
 	int nline;
 	pid_t pid;
 	int err = dso__disassemble_filename(dso, symfs_filename, sizeof(symfs_filename));
@@ -1460,8 +1457,7 @@ int symbol__disassemble(struct symbol *sym, struct map *map, const char *arch_na
 
 	nline = 0;
 	while (!feof(file)) {
-		if (symbol__parse_objdump_line(sym, map, arch, file, privsize,
-			    &lineno) < 0)
+		if (symbol__parse_objdump_line(sym, map, arch, file, privsize) < 0)
 			break;
 		nline++;
 	}
@@ -1631,6 +1627,7 @@ static int symbol__get_source_line(struct symbol *sym, struct map *map,
 	for (i = 0; i < len; i++) {
 		u64 offset;
 		double percent_max = 0.0;
+		struct disasm_line *dl;
 
 		src_line->nr_pcnt = nr_pcnt;
 
@@ -1645,6 +1642,19 @@ static int symbol__get_source_line(struct symbol *sym, struct map *map,
 		offset = start + i;
 		src_line->path = get_srcline(map->dso, offset, NULL, false);
 		insert_source_line(&tmp_root, src_line);
+
+		if (!strcmp(src_line->path, SRCLINE_UNKNOWN))
+			goto next;
+
+		list_for_each_entry(dl, &notes->src->source, node) {
+			if ((dl->offset + start) == offset) {
+				char *sep = strchr(src_line->path, ':');
+
+				if (sep)
+					dl->line_nr = strtoul(++sep, NULL, 0);
+			}
+		}
+	next:
 		src_line = (void *)src_line + sizeof_src_line;
 	}
 
