@@ -1002,7 +1002,6 @@ static int disasm_line__print(struct disasm_line *dl, struct symbol *sym, u64 st
 		      int max_lines, struct disasm_line *queue)
 {
 	static const char *prev_line;
-	static const char *prev_color;
 
 	if (dl->offset != -1) {
 		const char *path = NULL;
@@ -1059,17 +1058,10 @@ static int disasm_line__print(struct disasm_line *dl, struct symbol *sym, u64 st
 
 		color = get_percent_color(max_percent);
 
-		/*
-		 * Also color the filename and line if needed, with
-		 * the same color than the percentage. Don't print it
-		 * twice for close colored addr with the same filename:line
-		 */
 		if (path) {
-			if (!prev_line || strcmp(prev_line, path)
-				       || color != prev_color) {
-				color_fprintf(stdout, color, " %s", path);
+			if (!prev_line || strcmp(prev_line, path)) {
+				fprintf(stdout, " %s\n", path);
 				prev_line = path;
-				prev_color = color;
 			}
 		}
 
@@ -1650,14 +1642,9 @@ static int symbol__get_source_line(struct symbol *sym, struct map *map,
 				percent_max = src_line->samples[k].percent;
 		}
 
-		if (percent_max <= 0.5)
-			goto next;
-
 		offset = start + i;
 		src_line->path = get_srcline(map->dso, offset, NULL, false);
 		insert_source_line(&tmp_root, src_line);
-
-	next:
 		src_line = (void *)src_line + sizeof_src_line;
 	}
 
