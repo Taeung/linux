@@ -95,6 +95,12 @@ struct cyc_hist {
 	u16	reset;
 };
 
+struct source_code {
+	struct list_head node;
+	int nr;
+	char *code_line;
+};
+
 struct source_line_samples {
 	double		percent;
 	double		percent_sum;
@@ -123,6 +129,7 @@ struct source_line {
  */
 struct annotated_source {
 	struct list_head   source;
+	struct list_head   code;
 	struct source_line *lines;
 	int    		   nr_histograms;
 	size_t		   sizeof_sym_hist;

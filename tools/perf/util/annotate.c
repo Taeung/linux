@@ -1590,6 +1590,116 @@ static void symbol__free_source_line(struct symbol *sym, int len)
 	zfree(&notes->src->lines);
 }
 
+static int symbol__free_source_code(struct symbol *sym)
+{
+	struct annotation *notes = symbol__annotation(sym);
+	struct source_code *pos, *tmp;
+
+	if (&notes->src->code == NULL)
+		return -1;
+
+	list_for_each_entry_safe(pos, tmp, &notes->src->code, node) {
+		list_del(&pos->node);
+		zfree(&pos->code_line);
+		free(pos);
+	}
+	return 0;
+}
+
+static int parse_srcline(char *srcline, char **path, int *line_nr)
+{
+	char *sep;
+
+	if (!strcmp(srcline, SRCLINE_UNKNOWN))
+		return -1;
+
+	sep = strchr(srcline, ':');
+	if (sep) {
+		*sep = '\0';
+		*path = srcline;
+		*line_nr = strtoul(++sep, NULL, 0);
+	} else
+		return -1;
+
+	return 0;
+}
+
+static bool symbol__get_source_code(struct symbol *sym, struct map *map)
+{
+	FILE *file;
+	int first_linenr, start_linenr, end_linenr;
+	size_t len;
+	char *line = NULL, *path, *start_srcline, *end_srcline;
+	u64 start = map__rip_2objdump(map, sym->start);
+	u64 end = map__rip_2objdump(map, sym->end - 1);
+	bool bef_fullpath = srcline_full_filename;
+	bool ret = false;
+	struct annotation *notes = symbol__annotation(sym);
+
+	srcline_full_filename = true;
+	start_srcline = get_srcline(map->dso, start, NULL, false);
+	end_srcline = get_srcline(map->dso, end, NULL, false);
+	srcline_full_filename = bef_fullpath;
+
+	if (parse_srcline(start_srcline, &path, &start_linenr) < 0)
+		return false;
+	if (parse_srcline(end_srcline, &path, &end_linenr) < 0)
+		return false;
+
+	/* To read a function header for the sym */
+	if (start_linenr > 4)
+		first_linenr = start_linenr - 4;
+	else
+		first_linenr = 1;
+
+	if (access(path, R_OK) != 0)
+		return false;
+
+	file = fopen(path, "r");
+	if (!file)
+		return false;
+
+	INIT_LIST_HEAD(&notes->src->code);
+
+	while (!feof(file)) {
+		int nr;
+		char *c, *parsed_line;
+		struct source_code *code;
+
+		if (getline(&line, &len, file) < 0) {
+			symbol__free_source_code(sym);
+			break;
+		}
+
+		if (++nr < first_linenr)
+			continue;
+
+		parsed_line = rtrim(line);
+		c = strchr(parsed_line, '\n');
+		if (c)
+			*c = '\0';
+		code = zalloc(sizeof(*code));
+		if (!code) {
+			symbol__free_source_code(sym);
+			break;
+		}
+		code->nr = nr;
+		code->code_line = strdup(parsed_line);
+		list_add_tail(&code->node, &notes->src->code);
+
+		if (nr == end_linenr) {
+			ret = true;
+			break;
+		}
+	}
+
+	free(line);
+	fclose(file);
+	free_srcline(start_srcline);
+	free_srcline(end_srcline);
+	return ret;
+}
+
 /* Get the filename:line for the colored entries */
 static int symbol__get_source_line(struct symbol *sym, struct map *map,
 				   struct perf_evsel *evsel,
@@ -1862,6 +1972,7 @@ int symbol__tty_annotate(struct symbol *sym, struct map *map,
 	struct dso *dso = map->dso;
 	struct rb_root source_line = RB_ROOT;
 	u64 len;
+	bool has_code = false;
 
 	if (symbol__disassemble(sym, map, perf_evsel__env_arch(evsel), 0) < 0)
 		return -1;
@@ -1874,10 +1985,16 @@ int symbol__tty_annotate(struct symbol *sym, struct map *map,
 		print_summary(&source_line, dso->long_name);
 	}
 
+	if (symbol_conf.annotate_src)
+		has_code = symbol__get_source_code(sym, map);
+
 	symbol__annotate_printf(sym, map, evsel, full_paths,
 				min_pcnt, max_lines, 0);
 	if (print_lines)
 		symbol__free_source_line(sym, len);
+
+	if (has_code)
+		symbol__free_source_code(sym);
 
 	disasm__purge(&symbol__annotation(sym)->src->source);
 
