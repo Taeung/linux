@@ -19,14 +19,12 @@
 #include "evsel.h"
 #include "block-range.h"
 #include "arch/common.h"
-#include <regex.h>
 #include <pthread.h>
 #include <linux/bitops.h>
 #include <sys/utsname.h>
 
 const char 	*disassembler_style;
 const char	*objdump_path;
-static regex_t	 file_lineno;
 
 static struct ins_ops *ins__find(struct arch *arch, const char *name);
 static void ins__sort(struct arch *arch);
@@ -814,7 +812,7 @@ out_free_name:
 }
 
 static struct disasm_line *disasm_line__new(s64 offset, char *line,
-					    size_t privsize, int line_nr,
+					    size_t privsize,
 					    struct arch *arch,
 					    struct map *map)
 {
@@ -823,7 +821,6 @@ static struct disasm_line *disasm_line__new(s64 offset, char *line,
 	if (dl != NULL) {
 		dl->offset = offset;
 		dl->line = strdup(line);
-		dl->line_nr = line_nr;
 		if (dl->line == NULL)
 			goto out_delete;
 
@@ -1121,6 +1118,29 @@ static int disasm_line__print(struct disasm_line *dl, struct symbol *sym, u64 st
 	return 0;
 }
 
+static int parse_srcline(char *srcline, char **path, int *line_nr)
+{
+	char *sep;
+
+	if (path != NULL)
+		*path = NULL;
+
+	if (!strcmp(srcline, SRCLINE_UNKNOWN))
+		return -1;
+
+	sep = strchr(srcline, ':');
+	if (sep) {
+		*sep = '\0';
+		if (path != NULL)
+			*path = srcline;
+		if (line_nr != NULL)
+			*line_nr = strtoul(++sep, NULL, 0);
+	} else
+		return -1;
+
+	return 0;
+}
+
 /*
  * symbol__parse_objdump_line() parses objdump output (with -d --no-show-raw)
  * which looks like following
@@ -1143,15 +1163,14 @@ static int disasm_line__print(struct disasm_line *dl, struct symbol *sym, u64 st
  */
 static int symbol__parse_objdump_line(struct symbol *sym, struct map *map,
 				      struct arch *arch,
-				      FILE *file, size_t privsize,
-				      int *line_nr)
+				      FILE *file, size_t privsize)
 {
 	struct annotation *notes = symbol__annotation(sym);
 	struct disasm_line *dl;
 	char *line = NULL, *parsed_line, *tmp, *tmp2, *c;
 	size_t line_len;
 	s64 line_ip, offset = -1;
-	regmatch_t match[2];
+	bool has_src_code = true;
 
 	if (getline(&line, &line_len, file) < 0)
 		return -1;
@@ -1168,12 +1187,6 @@ static int symbol__parse_objdump_line(struct symbol *sym, struct map *map,
 
 	line_ip = -1;
 	parsed_line = line;
-
-	/* /filename:linenr ? Save line number and ignore. */
-	if (regexec(&file_lineno, line, 2, match, 0) == 0) {
-		*line_nr = atoi(line + match[1].rm_so);
-		return 0;
-	}
 
 	/*
 	 * Strip leading spaces:
@@ -1205,12 +1218,17 @@ static int symbol__parse_objdump_line(struct symbol *sym, struct map *map,
 			parsed_line = tmp2 + 1;
 	}
 
-	dl = disasm_line__new(offset, parsed_line, privsize, *line_nr, arch, map);
+	dl = disasm_line__new(offset, parsed_line, privsize, arch, map);
 	free(line);
-	(*line_nr)++;
 
 	if (dl == NULL)
 		return -1;
+
+	if (has_src_code && dl->offset != -1 && map->dso->symsrc_filename) {
+		if (parse_srcline(get_srcline(map->dso, line_ip, NULL, false),
+				  NULL, &dl->line_nr) < 0)
+			has_src_code = false;
+	}
 
 	if (!disasm_line__has_offset(dl)) {
 		dl->ops.target.offset = dl->ops.target.addr -
@@ -1233,11 +1251,6 @@ static int symbol__parse_objdump_line(struct symbol *sym, struct map *map,
 	disasm__add(&notes->src->source, dl);
 
 	return 0;
-}
-
-static __attribute__((constructor)) void symbol__init_regexpr(void)
-{
-	regcomp(&file_lineno, "^/[^:]+:([0-9]+)", REG_EXTENDED);
 }
 
 static void delete_last_nop(struct symbol *sym)
@@ -1360,7 +1373,6 @@ int symbol__disassemble(struct symbol *sym, struct map *map, const char *arch_na
 	struct kcore_extract kce;
 	bool delete_extract = false;
 	int stdout_fd[2];
-	int lineno = 0;
 	int nline;
 	pid_t pid;
 	int err = dso__disassemble_filename(dso, symfs_filename, sizeof(symfs_filename));
@@ -1435,7 +1447,7 @@ int symbol__disassemble(struct symbol *sym, struct map *map, const char *arch_na
 	snprintf(command, sizeof(command),
 		 "%s %s%s --start-address=0x%016" PRIx64
 		 " --stop-address=0x%016" PRIx64
-		 " -l -d %s %s -C %s 2>/dev/null|grep -v %s|expand",
+		 " -d %s %s -C %s 2>/dev/null|grep -v %s|expand",
 		 objdump_path ? objdump_path : "objdump",
 		 disassembler_style ? "-M " : "",
 		 disassembler_style ? disassembler_style : "",
@@ -1482,8 +1494,7 @@ int symbol__disassemble(struct symbol *sym, struct map *map, const char *arch_na
 
 	nline = 0;
 	while (!feof(file)) {
-		if (symbol__parse_objdump_line(sym, map, arch, file, privsize,
-			    &lineno) < 0)
+		if (symbol__parse_objdump_line(sym, map, arch, file, privsize) < 0)
 			break;
 		nline++;
 	}
