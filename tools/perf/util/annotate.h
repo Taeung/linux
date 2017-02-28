@@ -146,6 +146,7 @@ struct annotated_source {
 	struct list_head   source;
 	struct source_code *code;
 	struct source_line *lines;
+	bool		   has_src_code;
 	int    		   nr_histograms;
 	size_t		   sizeof_sym_hist;
 	struct cyc_hist	   *cycles_hist;
