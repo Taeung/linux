@@ -56,6 +56,11 @@ int ins__scnprintf(struct ins *ins, char *bf, size_t size, struct ins_operands *
 
 struct annotation;
 
+struct disasm_line_samples {
+	double		percent;
+	u64		nr;
+};
+
 struct disasm_line {
 	struct list_head    node;
 	s64		    offset;
@@ -95,6 +100,22 @@ struct cyc_hist {
 	u16	reset;
 };
 
+struct code_line {
+	struct list_head    node;
+	int		    line_nr;
+	char		    *line;
+	struct disasm_line_samples *samples_sum;
+};
+
+struct source_code {
+	char		 *path;
+	int		 nr_events;
+	struct list_head lines;
+};
+
+void source_code__set_samples(struct disasm_line *dl, struct annotation *notes,
+			      struct perf_evsel *evsel);
+
 struct source_line_samples {
 	double		percent;
 	double		percent_sum;
@@ -123,6 +144,7 @@ struct source_line {
  */
 struct annotated_source {
 	struct list_head   source;
+	struct source_code *code;
 	struct source_line *lines;
 	int    		   nr_histograms;
 	size_t		   sizeof_sym_hist;
@@ -157,6 +179,11 @@ int hist_entry__inc_addr_samples(struct hist_entry *he, int evidx, u64 addr);
 
 int symbol__alloc_hist(struct symbol *sym);
 void symbol__annotate_zero_histograms(struct symbol *sym);
+
+bool symbol__has_source_code(struct symbol *sym, struct map *map);
+int symbol__free_source_code(struct symbol *sym);
+int symbol__get_source_code(struct symbol *sym, struct map *map,
+			    struct perf_evsel *evsel);
 
 int symbol__disassemble(struct symbol *sym, struct map *map, const char *arch_name, size_t privsize);
 

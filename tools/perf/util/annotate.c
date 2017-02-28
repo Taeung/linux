@@ -1363,6 +1363,203 @@ static const char *annotate__norm_arch(const char *arch_name)
 	return normalize_arch((char *)arch_name);
 }
 
+bool symbol__has_source_code(struct symbol *sym, struct map *map)
+{
+	u64 start = map__rip_2objdump(map, sym->start);
+
+	if (map->dso->symsrc_filename &&
+	    parse_srcline(get_srcline(map->dso, start, NULL, false),
+			  NULL, NULL) != -1)
+		return true;
+
+	return false;
+}
+
+int symbol__free_source_code(struct symbol *sym)
+{
+	struct annotation *notes = symbol__annotation(sym);
+	struct source_code *code = notes->src->code;
+	struct code_line *pos, *tmp;
+
+	if (code == NULL)
+		return -1;
+
+	list_for_each_entry_safe(pos, tmp, &code->lines, node) {
+		list_del_init(&pos->node);
+		zfree(&pos->line);
+		zfree(&pos->samples_sum);
+	}
+	zfree(&code->path);
+	zfree(&notes->src->code);
+	return 0;
+}
+
+static void source_code__print(struct code_line *cl, int nr_events)
+{
+	int i;
+	const char *color;
+	double percent, max_percent = 0.0;
+
+	for (i = 0; i < nr_events; i++) {
+		percent = cl->samples_sum[i].percent;
+		color = get_percent_color(percent);
+		if (max_percent < percent)
+			max_percent = percent;
+
+		if (symbol_conf.show_total_period)
+			color_fprintf(stdout, color, " %7" PRIu64,
+				      cl->samples_sum[i].nr);
+		else
+			color_fprintf(stdout, color, " %7.2f", percent);
+	}
+	color = get_percent_color(max_percent);
+	color_fprintf(stdout, color, " : %d	%s\n",
+		      cl->line_nr, cl->line);
+}
+
+static int source_code__collect(struct source_code *code, char *path,
+				int start_linenr, int end_linenr)
+{
+	FILE *file;
+	int ret = -1, linenr = 0;
+	char *line = NULL, *c, *parsed_line;
+	size_t len;
+	struct code_line *cl;
+
+	if (access(path, R_OK) != 0)
+		return -1;
+
+	file = fopen(path, "r");
+	if (!file)
+		return -1;
+
+	if (srcline_full_filename)
+		code->path = strdup(path);
+	else
+		code->path = strdup(basename(path));
+
+	INIT_LIST_HEAD(&code->lines);
+	while (!feof(file)) {
+		if (getline(&line, &len, file) < 0)
+			break;
+
+		if (++linenr < start_linenr)
+			continue;
+
+		parsed_line = rtrim(line);
+		c = strchr(parsed_line, '\n');
+		if (c)
+			*c = '\0';
+
+		cl = zalloc(sizeof(*cl));
+		if (!cl)
+			break;
+
+		cl->line_nr = linenr;
+		cl->line = strdup(parsed_line);
+		cl->samples_sum =
+			zalloc(sizeof(struct disasm_line_samples) * code->nr_events);
+		if (!cl->samples_sum)
+			break;
+
+		list_add_tail(&cl->node, &code->lines);
+		if (linenr == end_linenr) {
+			ret = 0;
+			break;
+		}
+	}
+
+	free(line);
+	fclose(file);
+	return ret;
+}
+
+int symbol__get_source_code(struct symbol *sym, struct map *map,
+			    struct perf_evsel *evsel)
+{
+	struct annotation *notes = symbol__annotation(sym);
+	struct source_code *code;
+	int start_linenr, end_linenr, ret = 0;
+	char *path, *start_srcline, *end_srcline;
+	u64 start = map__rip_2objdump(map, sym->start);
+	u64 end = map__rip_2objdump(map, sym->end - 1);
+	bool bef_fullpath = srcline_full_filename;
+
+	srcline_full_filename = true;
+	start_srcline = get_srcline(map->dso, start, NULL, false);
+	end_srcline = get_srcline(map->dso, end, NULL, false);
+	srcline_full_filename = bef_fullpath;
+
+	if (parse_srcline(start_srcline, &path, &start_linenr) < 0)
+		return -1;
+	if (parse_srcline(end_srcline, &path, &end_linenr) < 0)
+		return -1;
+
+	code = zalloc(sizeof(struct source_code));
+	if (code == NULL)
+		return -1;
+
+	if (perf_evsel__is_group_event(evsel))
+		code->nr_events = evsel->nr_members;
+	else
+		code->nr_events = 1;
+
+	/* To read a function header for the sym */
+	if (start_linenr > 4)
+		start_linenr -= 4;
+	else
+		start_linenr = 1;
+
+	if (source_code__collect(code, path, start_linenr, end_linenr) < 0) {
+		zfree(&code);
+		ret = -1;
+	}
+	notes->src->code = code;
+
+	free_srcline(start_srcline);
+	free_srcline(end_srcline);
+	return ret;
+}
+
+static struct code_line *source_code__find_line(struct list_head *lines, int linenr)
+{
+	struct code_line *pos;
+
+	list_for_each_entry(pos, lines, node) {
+		if (pos->line_nr == linenr)
+			return pos;
+	}
+	return NULL;
+}
+
+void source_code__set_samples(struct disasm_line *dl, struct annotation *notes,
+			      struct perf_evsel *evsel)
+{
+	int i;
+	double percent;
+	u64 nr_samples;
+	struct sym_hist *h;
+	struct source_code *code;
+	struct code_line *cl;
+
+	code = notes->src->code;
+	for (i = 0; i < code->nr_events; i++) {
+		h = annotation__histogram(notes, evsel->idx + i);
+		nr_samples = h->addr[dl->offset];
+
+		if (nr_samples == 0)
+			percent = 0.0;
+		else
+			percent = 100.0 * nr_samples / h->sum;
+
+		cl = source_code__find_line(&code->lines, dl->line_nr);
+		if (cl == NULL)
+			continue;
+		cl->samples_sum[i].percent += percent;
+		cl->samples_sum[i].nr += nr_samples;
+	}
+}
+
 int symbol__disassemble(struct symbol *sym, struct map *map, const char *arch_name, size_t privsize)
 {
 	struct dso *dso = map->dso;
@@ -1447,14 +1644,13 @@ int symbol__disassemble(struct symbol *sym, struct map *map, const char *arch_na
 	snprintf(command, sizeof(command),
 		 "%s %s%s --start-address=0x%016" PRIx64
 		 " --stop-address=0x%016" PRIx64
-		 " -d %s %s -C %s 2>/dev/null|grep -v %s|expand",
+		 " -d %s -C %s 2>/dev/null|grep -v %s|expand",
 		 objdump_path ? objdump_path : "objdump",
 		 disassembler_style ? "-M " : "",
 		 disassembler_style ? disassembler_style : "",
 		 map__rip_2objdump(map, sym->start),
 		 map__rip_2objdump(map, sym->end),
 		 symbol_conf.annotate_asm_raw ? "" : "--no-show-raw",
-		 symbol_conf.annotate_src ? "-S" : "",
 		 symfs_filename, symfs_filename);
 
 	pr_debug("Executing: %s\n", command);
@@ -1501,7 +1697,6 @@ int symbol__disassemble(struct symbol *sym, struct map *map, const char *arch_na
 
 	if (nline == 0)
 		pr_err("No output from %s\n", command);
-
 	/*
 	 * kallsyms does not have symbol sizes so there may a nop at the end.
 	 * Remove it.
@@ -1753,6 +1948,7 @@ int symbol__annotate_printf(struct symbol *sym, struct map *map,
 	struct sym_hist *h = annotation__histogram(notes, evsel->idx);
 	struct disasm_line *pos, *queue = NULL;
 	u64 start = map__rip_2objdump(map, sym->start);
+	bool has_src_code = false;
 	int printed = 2, queue_len = 0;
 	int more = 0;
 	u64 len;
@@ -1773,14 +1969,36 @@ int symbol__annotate_printf(struct symbol *sym, struct map *map,
 	if (perf_evsel__is_group_event(evsel))
 		width *= evsel->nr_members;
 
-	graph_dotted_len = printf(" %-*.*s|	Source code & Disassembly of %s for %s (%" PRIu64 " samples)\n",
-	       width, width, "Percent", d_filename, evsel_name, h->sum);
+	if (symbol_conf.annotate_src && symbol__has_source_code(sym, map))
+		has_src_code = true;
+
+	graph_dotted_len = printf(" %-*.*s|	%s of %s for %s (%" PRIu64 " samples)\n",
+				  width, width, "Percent",
+				  has_src_code ? "Source code" : "Disassembly",
+				  has_src_code ? notes->src->code->path : d_filename,
+				  evsel_name, h->sum);
 
 	printf("%-*.*s----\n",
 	       graph_dotted_len, graph_dotted_len, graph_dotted_line);
 
 	if (verbose > 0)
 		symbol__annotate_hits(sym, evsel);
+
+	if (has_src_code) {
+		struct source_code *code = notes->src->code;
+		struct code_line *cl;
+
+		list_for_each_entry(pos, &notes->src->source, node) {
+			if (pos->offset == -1)
+				continue;
+			source_code__set_samples(pos, notes, evsel);
+		}
+
+		list_for_each_entry(cl, &code->lines, node)
+			source_code__print(cl, code->nr_events);
+
+		goto out;
+	}
 
 	list_for_each_entry(pos, &notes->src->source, node) {
 		if (context && queue == NULL) {
@@ -1818,7 +2036,8 @@ int symbol__annotate_printf(struct symbol *sym, struct map *map,
 			break;
 		}
 	}
-
+out:
+	printf("\n");
 	free(filename);
 
 	return more;
@@ -1902,11 +2121,15 @@ int symbol__tty_annotate(struct symbol *sym, struct map *map,
 		print_summary(&source_line, dso->long_name);
 	}
 
+	if (symbol_conf.annotate_src && symbol__has_source_code(sym, map))
+		symbol__get_source_code(sym, map, evsel);
+
 	symbol__annotate_printf(sym, map, evsel, full_paths,
 				min_pcnt, max_lines, 0);
 	if (print_lines)
 		symbol__free_source_line(sym, len);
 
+	symbol__free_source_code(sym);
 	disasm__purge(&symbol__annotation(sym)->src->source);
 
 	return 0;

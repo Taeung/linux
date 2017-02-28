@@ -431,7 +431,7 @@ int cmd_annotate(int argc, const char **argv, const char *prefix __maybe_unused)
 		     "Look for files with symbols relative to this directory",
 		     symbol__config_symfs),
 	OPT_BOOLEAN(0, "source", &symbol_conf.annotate_src,
-		    "Interleave source code with assembly code (default)"),
+		    "Display source code for each symbol (default)"),
 	OPT_BOOLEAN(0, "asm-raw", &symbol_conf.annotate_asm_raw,
 		    "Display raw encoding of assembly instructions (default)"),
 	OPT_STRING('M', "disassembler-style", &disassembler_style, "disassembler style",

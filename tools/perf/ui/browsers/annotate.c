@@ -11,11 +11,6 @@
 #include "../../util/config.h"
 #include <pthread.h>
 
-struct disasm_line_samples {
-	double		percent;
-	u64		nr;
-};
-
 #define IPC_WIDTH 6
 #define CYCLES_WIDTH 6
 
