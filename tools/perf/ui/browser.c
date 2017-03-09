@@ -493,7 +493,9 @@ unsigned int ui_browser__list_head_refresh(struct ui_browser *browser)
 	list_for_each_from(pos, head) {
 		if (!browser->filter || !browser->filter(browser, pos)) {
 			ui_browser__gotorc(browser, row, 0);
+			browser->extra_rows = 0;
 			browser->write(browser, pos, row);
+			row += browser->extra_rows;
 			if (++row == browser->rows)
 				break;
 		}

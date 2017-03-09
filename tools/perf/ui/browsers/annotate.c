@@ -41,10 +41,12 @@ struct annotate_browser {
 	struct ui_browser b, cb;
 	struct rb_root	  entries;
 	struct rb_node	  *curr_hot;
+	struct code_line  *cl_selection;
 	struct disasm_line  *selection;
 	struct disasm_line  **offsets;
 	int		    nr_events;
 	u64		    start;
+	int		    nr_cl_entries;
 	int		    nr_asm_entries;
 	int		    nr_entries;
 	int		    max_jump_sources;
@@ -146,6 +148,66 @@ static void annotate_code_browser__write(struct ui_browser *browser, void *entry
 
 	ui_browser__write_nstring(browser, line, printed);
 	ui_browser__write_nstring(browser, cl->line, browser->width);
+
+	if (!cl->show_asm)
+		goto out;
+
+	for (i = 0; i <  cl->nr_matched_dl; i++) {
+		int k;
+		struct disasm_line *dl = cl->matched_dl_arr[i];
+		struct browser_disasm_line *bdl = disasm_line__browser(dl);
+
+		if (++row == browser->rows)
+			goto out;
+
+		ui_browser__gotorc(browser, row, 0);
+		current_entry = ui_browser__is_current_entry(browser, row);
+
+		for (k = 0; k < ab->nr_events; k++) {
+			ui_browser__set_percent_color(browser, bdl->samples[k].percent,
+						      current_entry);
+			if (bdl->samples[k].percent == 0.0) {
+				ui_browser__write_nstring(browser, " ", 7);
+				continue;
+			}
+
+			if (annotate_browser__opts.show_total_period) {
+				ui_browser__printf(browser, "%6" PRIu64 " ",
+						   bdl->samples[k].nr);
+			} else {
+				ui_browser__printf(browser, "%6.2f ",
+						   bdl->samples[k].percent);
+			}
+		}
+
+		SLsmg_write_char(' ');
+
+		if (current_entry)
+			ui_browser__set_percent_color(browser, 0, current_entry);
+
+		if (!annotate_browser__opts.use_offset) {
+			u64 addr = dl->offset;
+			addr += ab->start;
+
+			printed = scnprintf(line, sizeof(line), "%" PRIx64 ": ", addr);
+		} else
+			printed = scnprintf(line, sizeof(line), "%*s  ",
+					    ab->addr_width + 4, " ");
+		if (!current_entry)
+			ui_browser__set_color(browser, HE_COLORSET_ADDR);
+		ui_browser__write_nstring(browser, line, printed);
+
+		disasm_line__scnprintf(dl, line, sizeof(line),
+				       !annotate_browser__opts.use_offset);
+		if (!current_entry)
+			ui_browser__set_color(browser, HE_COLORSET_ASM);
+		ui_browser__write_nstring(browser, line, browser->width);
+
+		browser->extra_rows++;
+	}
+out:
+	if (current_entry)
+		ab->cl_selection = cl;
 }
 
 static void annotate_browser__write(struct ui_browser *browser, void *entry, int row)
@@ -731,6 +793,21 @@ static void annotate_browser__update_addr_width(struct annotate_browser *browser
 		browser->addr_width += browser->jumps_width + 1;
 }
 
+static void annotate_code_browser__update_nr_entries(struct annotate_browser *browser)
+{
+	u32 nr_entries = browser->nr_cl_entries;
+	struct ui_browser *cb = &browser->cb;
+	struct list_head *code_lines = cb->entries;
+	struct code_line *cl;
+
+	cb->nr_entries = nr_entries;
+	list_for_each_entry(cl, code_lines, node) {
+		if (cl->show_asm)
+			nr_entries += cl->nr_matched_dl;
+	}
+	ui_browser__update_nr_entries(cb, nr_entries);
+}
+
 static int annotate_code_browser__run(struct annotate_browser *browser,
 				      struct perf_evsel *evsel, int delay_secs)
 {
@@ -754,9 +831,20 @@ static int annotate_code_browser__run(struct annotate_browser *browser,
 		"UP/DOWN/PGUP\n"
 		"PGDN/SPACE    Navigate\n"
 		"q/ESC/CTRL+C  Return to dissembly view\n\n"
+		"ENTER         Toggle showing particular asm lines for current cursor\n"
 		"s             Toggle source code view\n"
 		"t             Toggle total period view\n"
 		"k             Toggle line numbers\n");
+			continue;
+		case K_ENTER:
+			if (browser->cl_selection == NULL ||
+				browser->cl_selection->nr_matched_dl == 0)
+				ui_helpline__puts("No assambly code for the line");
+			else {
+				browser->cl_selection->show_asm =
+					!browser->cl_selection->show_asm;
+				annotate_code_browser__update_nr_entries(browser);
+			}
 			continue;
 		case 't':
 			annotate_browser__opts.show_total_period =
@@ -766,6 +854,18 @@ static int annotate_code_browser__run(struct annotate_browser *browser,
 			annotate_browser__opts.show_linenr =
 				!annotate_browser__opts.show_linenr;
 			continue;
+		case 'D': {
+			static int seq;
+			ui_helpline__pop();
+			ui_helpline__fpush("%d: nr_ent=%d, height=%d, idx=%d, top_idx=%d, nr_entries=%d",
+					   seq++, browser->cb.nr_entries,
+					   browser->cb.height,
+					   browser->cb.index,
+					   browser->cb.top_idx,
+					   browser->cb.rows);
+		}
+			continue;
+
 		case 's':
 		case K_LEFT:
 		case K_ESC:
@@ -1198,6 +1298,7 @@ int symbol__tui_annotate(struct symbol *sym, struct map *map,
 				browser.cb.width = line_len;
 			browser.cb.nr_entries++;
 		}
+		browser.nr_cl_entries = browser.cb.nr_entries;
 	}
 
 	annotate_browser__init_asm_mode(&browser);

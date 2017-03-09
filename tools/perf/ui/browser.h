@@ -8,13 +8,14 @@
 #define HE_COLORSET_NORMAL	52
 #define HE_COLORSET_SELECTED	53
 #define HE_COLORSET_JUMP_ARROWS	54
+#define HE_COLORSET_ASM		54
 #define HE_COLORSET_ADDR	55
 #define HE_COLORSET_ROOT	56
 
 struct ui_browser {
 	u64	      index, top_idx;
 	void	      *top, *entries;
-	u16	      y, x, width, height, rows, columns, horiz_scroll;
+	u16	      y, x, width, height, rows, extra_rows, columns, horiz_scroll;
 	int	      current_color;
 	void	      *priv;
 	const char    *title;
