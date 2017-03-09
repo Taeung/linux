@@ -823,11 +823,11 @@ static struct disasm_line *disasm_line__new(s64 offset, char *line,
 	if (dl != NULL) {
 		dl->offset = offset;
 		dl->line = strdup(line);
-		dl->line_nr = line_nr;
 		if (dl->line == NULL)
 			goto out_delete;
 
 		if (offset != -1) {
+			dl->line_nr = line_nr;
 			if (disasm_line__parse(dl->line, &dl->ins.name, &dl->ops.raw) < 0)
 				goto out_free_line;
 
@@ -1207,7 +1207,6 @@ static int symbol__parse_objdump_line(struct symbol *sym, struct map *map,
 
 	dl = disasm_line__new(offset, parsed_line, privsize, *line_nr, arch, map);
 	free(line);
-	(*line_nr)++;
 
 	if (dl == NULL)
 		return -1;
