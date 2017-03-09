@@ -23,7 +23,6 @@
 [annotate]
 
 	# Defaults
-	hide_src_code = false
 	use_offset = true
 	jump_arrows = true
 	show_nr_jumps = false
