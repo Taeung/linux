@@ -1357,6 +1357,273 @@ static const char *annotate__norm_arch(const char *arch_name)
 	return normalize_arch((char *)arch_name);
 }
 
+static int parse_srcline(char *srcline, char **path, int *line_nr)
+{
+	char *sep;
+
+	if (srcline == NULL || !strcmp(srcline, SRCLINE_UNKNOWN))
+		return -1;
+
+	sep = strchr(srcline, ':');
+	if (sep) {
+		*sep = '\0';
+		*path = srcline;
+		*line_nr = strtoul(++sep, NULL, 0);
+	} else
+		return -1;
+
+	return 0;
+}
+
+static void code_line__free(struct code_line *cl)
+{
+	zfree(&cl->line);
+	zfree(&cl->matched_dl_arr);
+	zfree(&cl->samples_sum);
+	free(cl);
+}
+
+static void code_lines__free(struct list_head *code_lines)
+{
+	struct code_line *pos, *tmp;
+
+	if (list_empty(code_lines))
+		return;
+
+	list_for_each_entry_safe(pos, tmp, code_lines, node) {
+		list_del_init(&pos->node);
+		code_line__free(pos);
+	}
+}
+
+static int symbol__free_source_code(struct symbol *sym)
+{
+	struct annotation *notes = symbol__annotation(sym);
+	struct source_code *code = notes->src->code;
+
+	if (code == NULL)
+		return -1;
+
+	code_lines__free(&code->lines);
+	zfree(&code->path);
+	zfree(&notes->src->code);
+	return 0;
+}
+
+static void code_line__sum_samples(struct code_line *cl, struct disasm_line *dl,
+				   struct annotation *notes, struct perf_evsel *evsel)
+{
+	int i;
+	u64 nr_samples;
+	struct sym_hist *h;
+	struct source_code *code = notes->src->code;
+
+	for (i = 0; i < code->nr_events; i++) {
+		double percent = 0.0;
+
+		h = annotation__histogram(notes, evsel->idx + i);
+		nr_samples = h->addr[dl->offset];
+		if (h->sum)
+			percent = 100.0 * nr_samples / h->sum;
+
+		cl->samples_sum[i].percent += percent;
+		cl->samples_sum[i].nr += nr_samples;
+	}
+}
+
+static void source_code__print(struct code_line *cl, int nr_events,
+			       struct annotation *notes, struct perf_evsel *evsel)
+{
+	int i;
+	const char *color;
+	double percent, max_percent = 0.0;
+
+	for (i = 0; i < cl->nr_matched_dl; i++) {
+		code_line__sum_samples(cl, cl->matched_dl_arr[i], notes, evsel);
+	}
+
+	for (i = 0; i < nr_events; i++) {
+		percent = cl->samples_sum[i].percent;
+		color = get_percent_color(percent);
+		if (max_percent < percent)
+			max_percent = percent;
+
+		if (symbol_conf.show_total_period)
+			color_fprintf(stdout, color, " %7" PRIu64,
+				      cl->samples_sum[i].nr);
+		else
+			color_fprintf(stdout, color, " %7.2f", percent);
+	}
+	color = get_percent_color(max_percent);
+	color_fprintf(stdout, color, " : %d	%s\n",
+		      cl->line_nr, cl->line);
+}
+
+static int code_line__match_with_dl(struct code_line *cl, struct list_head *disasm_lines)
+{
+	int nr_dl = 0;
+	struct disasm_line *pos, **tmp, **matched_dl_arr;
+	size_t allocated = sizeof(struct disasm_line **);
+
+	matched_dl_arr = zalloc(allocated);
+	if (!matched_dl_arr)
+		return -1;
+
+	list_for_each_entry(pos, disasm_lines, node) {
+		if (pos->line_nr == cl->line_nr) {
+			if (nr_dl > 0) {
+				tmp = realloc(matched_dl_arr, allocated * (nr_dl + 1));
+				if (!tmp) {
+					free(matched_dl_arr);
+					return -1;
+				}
+				matched_dl_arr = tmp;
+			}
+			matched_dl_arr[nr_dl++] = pos;
+		}
+	}
+
+	cl->matched_dl_arr = matched_dl_arr;
+	cl->nr_matched_dl = nr_dl;
+	return 0;
+}
+
+static struct code_line *code_line__new(char *line, int linenr, int nr_events)
+{
+	struct code_line *cl = zalloc(sizeof(*cl));
+
+	if (!cl)
+		return NULL;
+
+	cl->line_nr = linenr;
+	cl->line = strdup(line);
+	cl->samples_sum =
+		zalloc(sizeof(struct disasm_line_samples) * nr_events);
+	if (!cl->samples_sum)
+		zfree(&cl);
+
+	return cl;
+}
+
+static int source_code__collect(struct source_code *code,
+				struct annotation *notes,
+				char *path, char* d_name,
+				int start_linenr, int end_linenr)
+{
+	int ret = -1, linenr = 0;
+	char *line = NULL, *parsed_line;
+	size_t len;
+	FILE *file;
+	struct stat srcfile_st, objfile_st;
+	struct code_line *cl;
+
+	if (stat(path, &srcfile_st) < 0)
+		return -1;
+	else {
+		if (stat(d_name, &objfile_st) < 0)
+			return -1;
+		if (srcfile_st.st_mtime > objfile_st.st_mtime) {
+			pr_err("Source file is more recent than when recording"
+				   ": %s\n", path);
+			pr_err("  (try 'perf record' again after recompiling"
+			       " the source file or with 'perf buildid-cache -r')\n");
+			return -1;
+		}
+	}
+
+	file = fopen(path, "r");
+	if (!file)
+		return -1;
+
+	if (srcline_full_filename)
+		code->path = strdup(path);
+	else
+		code->path = strdup(basename(path));
+
+	INIT_LIST_HEAD(&code->lines);
+	while (!feof(file)) {
+		if (getline(&line, &len, file) < 0)
+			goto out_err;
+
+		if (++linenr < start_linenr)
+			continue;
+
+		parsed_line = rtrim(line);
+		cl = code_line__new(parsed_line, linenr, code->nr_events);
+		if (!cl)
+			goto out_err;
+		if (code_line__match_with_dl(cl, &notes->src->source) < 0)
+			goto out_err;
+
+		list_add_tail(&cl->node, &code->lines);
+		if (linenr == end_linenr) {
+			ret = 0;
+			goto out;
+		}
+	}
+out_err:
+	code_lines__free(&code->lines);
+out:
+	free(line);
+	fclose(file);
+	return ret;
+}
+
+static int symbol__get_source_code(struct symbol *sym, struct map *map,
+				   struct perf_evsel *evsel)
+{
+	struct annotation *notes = symbol__annotation(sym);
+	struct source_code *code;
+	bool tmp;
+	u64 start = map__rip_2objdump(map, sym->start);
+	u64 end = map__rip_2objdump(map, sym->end - 1);
+	int start_linenr, end_linenr, ret = -1;
+	char *path, *start_srcline = NULL, *end_srcline = NULL;
+	char *d_name = map->dso->symsrc_filename;
+
+	if (!d_name)
+		return -1;
+
+	tmp = srcline_full_filename;
+	srcline_full_filename = true;
+	start_srcline = get_srcline(map->dso, start, NULL, false);
+	end_srcline = get_srcline(map->dso, end, NULL, false);
+	srcline_full_filename = tmp;
+
+	if (parse_srcline(start_srcline, &path, &start_linenr) < 0)
+		goto out;
+	if (parse_srcline(end_srcline, &path, &end_linenr) < 0)
+		goto out;
+
+	code = zalloc(sizeof(struct source_code));
+	if (code == NULL)
+		goto out;
+
+	if (perf_evsel__is_group_event(evsel))
+		code->nr_events = evsel->nr_members;
+	else
+		code->nr_events = 1;
+
+	/* To read a function header for the sym */
+	if (start_linenr > 4)
+		start_linenr -= 4;
+	else
+		start_linenr = 1;
+
+	if (source_code__collect(code, notes, path, d_name,
+				 start_linenr, end_linenr) < 0) {
+		zfree(&code);
+		goto out;
+	}
+
+	ret = 0;
+	notes->src->code = code;
+out:
+	free_srcline(start_srcline);
+	free_srcline(end_srcline);
+	return ret;
+}
+
 int symbol__disassemble(struct symbol *sym, struct map *map, const char *arch_name, size_t privsize)
 {
 	struct dso *dso = map->dso;
@@ -1497,7 +1764,6 @@ int symbol__disassemble(struct symbol *sym, struct map *map, const char *arch_na
 
 	if (nline == 0)
 		pr_err("No output from %s\n", command);
-
 	/*
 	 * kallsyms does not have symbol sizes so there may a nop at the end.
 	 * Remove it.
@@ -1755,6 +2021,7 @@ int symbol__annotate_printf(struct symbol *sym, struct map *map,
 	struct sym_hist *h = annotation__histogram(notes, evsel->idx);
 	struct disasm_line *pos, *queue = NULL;
 	u64 start = map__rip_2objdump(map, sym->start);
+	bool src_code_only = false;
 	int printed = 2, queue_len = 0;
 	int more = 0;
 	u64 len;
@@ -1775,14 +2042,30 @@ int symbol__annotate_printf(struct symbol *sym, struct map *map,
 	if (perf_evsel__is_group_event(evsel))
 		width *= evsel->nr_members;
 
-	graph_dotted_len = printf(" %-*.*s|	Source code & Disassembly of %s for %s (%" PRIu64 " samples)\n",
-	       width, width, "Percent", d_filename, evsel_name, h->sum);
+	if (symbol_conf.annotate_src_only && notes->src->has_src_code)
+		src_code_only = true;
+
+	graph_dotted_len = printf(" %-*.*s|	%s of %s for %s (%" PRIu64 " samples)\n",
+				  width, width, "Percent",
+				  src_code_only ? "Source code" : "Source code & Disassembly",
+				  src_code_only ? notes->src->code->path : d_filename,
+				  evsel_name, h->sum);
 
 	printf("%-*.*s----\n",
 	       graph_dotted_len, graph_dotted_len, graph_dotted_line);
 
 	if (verbose > 0)
 		symbol__annotate_hits(sym, evsel);
+
+	if (src_code_only) {
+		struct source_code *code = notes->src->code;
+		struct code_line *cl;
+
+		list_for_each_entry(cl, &code->lines, node)
+			source_code__print(cl, code->nr_events, notes, evsel);
+
+		goto out;
+	}
 
 	list_for_each_entry(pos, &notes->src->source, node) {
 		if (context && queue == NULL) {
@@ -1820,7 +2103,8 @@ int symbol__annotate_printf(struct symbol *sym, struct map *map,
 			break;
 		}
 	}
-
+out:
+	printf("\n");
 	free(filename);
 
 	return more;
@@ -1890,6 +2174,7 @@ int symbol__tty_annotate(struct symbol *sym, struct map *map,
 			 bool full_paths, int min_pcnt, int max_lines)
 {
 	struct dso *dso = map->dso;
+	struct annotation *notes = symbol__annotation(sym);
 	struct rb_root source_line = RB_ROOT;
 	u64 len;
 
@@ -1904,11 +2189,17 @@ int symbol__tty_annotate(struct symbol *sym, struct map *map,
 		print_summary(&source_line, dso->long_name);
 	}
 
+	if (symbol_conf.annotate_src_only &&
+	    symbol__get_source_code(sym, map, evsel) == 0)
+		notes->src->has_src_code = true;
+
 	symbol__annotate_printf(sym, map, evsel, full_paths,
 				min_pcnt, max_lines, 0);
 	if (print_lines)
 		symbol__free_source_line(sym, len);
 
+	if (notes->src->has_src_code)
+		symbol__free_source_code(sym);
 	disasm__purge(&symbol__annotation(sym)->src->source);
 
 	return 0;

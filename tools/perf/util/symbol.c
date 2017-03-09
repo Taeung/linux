@@ -35,6 +35,7 @@ struct symbol_conf symbol_conf = {
 	.use_modules		= true,
 	.try_vmlinux_path	= true,
 	.annotate_src		= true,
+	.annotate_src_only	= false,
 	.demangle		= true,
 	.demangle_kernel	= false,
 	.cumulate_callchain	= true,
