@@ -707,7 +707,7 @@ int perf_config(config_fn_t fn, void *data)
 	struct perf_config_section *section;
 	struct perf_config_item *item;
 
-	if (config_set == NULL)
+	if (config_set == NULL || list_empty(&config_set->sections))
 		return -1;
 
 	perf_config_set__for_each_entry(config_set, section, item) {

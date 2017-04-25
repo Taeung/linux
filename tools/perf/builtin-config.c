@@ -75,7 +75,7 @@ static int show_spec_config(struct perf_config_set *set, const char *var)
 	struct perf_config_section *section;
 	struct perf_config_item *item;
 
-	if (set == NULL)
+	if (set == NULL || list_empty(&set->sections))
 		return -1;
 
 	perf_config_items__for_each_entry(&set->sections, section) {
@@ -105,7 +105,7 @@ static int show_config(struct perf_config_set *set)
 	struct perf_config_section *section;
 	struct perf_config_item *item;
 
-	if (set == NULL)
+	if (set == NULL || list_empty(&set->sections))
 		return -1;
 
 	perf_config_set__for_each_entry(set, section, item) {
