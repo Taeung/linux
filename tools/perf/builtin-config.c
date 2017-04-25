@@ -188,7 +188,7 @@ int cmd_config(int argc, const char **argv)
 	set = perf_config_set__new();
 	if (!set) {
 		ret = -1;
-		goto out_err;
+		goto none_err;
 	}
 
 	switch (actions) {
@@ -199,8 +199,7 @@ int cmd_config(int argc, const char **argv)
 		} else {
 			ret = show_config(set);
 			if (ret < 0)
-				pr_err("Nothing configured, "
-				       "please check your %s \n", config_filename);
+				goto none_err;
 		}
 		break;
 	default:
@@ -221,9 +220,11 @@ int cmd_config(int argc, const char **argv)
 					break;
 				}
 
-				if (value == NULL)
+				if (value == NULL) {
 					ret = show_spec_config(set, var);
-				else
+					if (ret < 0)
+						goto none_err;
+				} else
 					ret = set_config(set, config_filename, var, value);
 				free(arg);
 			}
@@ -231,7 +232,11 @@ int cmd_config(int argc, const char **argv)
 			usage_with_options(config_usage, config_options);
 	}
 
+none_err:
+	if (ret < 0 && (!set || list_empty(&set->sections)))
+		pr_err("Nothing configured, "
+		       "please check your %s \n", config_filename);
+
 	perf_config_set__delete(set);
-out_err:
 	return ret;
 }
