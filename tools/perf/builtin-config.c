@@ -33,8 +33,7 @@ static struct option config_options[] = {
 	OPT_END()
 };
 
-static int set_config(struct perf_config_set *set, const char *file_name,
-		      const char *var, const char *value)
+static int set_config(struct perf_config_set *set, const char *file_name)
 {
 	struct perf_config_section *section = NULL;
 	struct perf_config_item *item = NULL;
@@ -48,7 +47,6 @@ static int set_config(struct perf_config_set *set, const char *file_name,
 	if (!fp)
 		return -1;
 
-	perf_config_set__collect(set, file_name, var, value);
 	fprintf(fp, "%s\n", first_line);
 
 	/* overwrite configvariables */
@@ -160,6 +158,7 @@ int cmd_config(int argc, const char **argv)
 	struct perf_config_set *set;
 	char *user_config = mkpath("%s/.perfconfig", getenv("HOME"));
 	const char *config_filename;
+	bool changed = false;
 
 	argc = parse_options(argc, argv, config_options, config_usage,
 			     PARSE_OPT_STOP_AT_NON_OPTION);
@@ -225,7 +224,11 @@ int cmd_config(int argc, const char **argv)
 			}
 
 			if (value) {
-				ret = set_config(set, config_filename, var, value);
+				ret = perf_config_set__collect(set, config_filename,
+							       var, value);
+				if (ret < 0)
+					break;
+				changed = true;
 				continue;
 			}
 			ret = show_spec_config(set, var);
@@ -234,6 +237,9 @@ int cmd_config(int argc, const char **argv)
 
 			free(arg);
 		}
+
+		if (changed)
+			ret = set_config(set, config_filename);
 	}
 
 none_err:
