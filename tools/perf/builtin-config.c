@@ -186,8 +186,10 @@ int cmd_config(int argc, const char **argv)
 	 * because of reinitializing with options config file location.
 	 */
 	set = perf_config_set__new();
-	if (!set)
+	if (!set) {
+		pr_err("Failed to load configs from %s\n", config_filename);
 		goto out_err;
+	}
 
 	switch (actions) {
 	case ACTION_LIST:
