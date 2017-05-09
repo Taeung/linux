@@ -97,7 +97,7 @@ static int show_spec_config(struct perf_config_set *set, const char *var)
 		}
 	}
 
-	return 0;
+	return -1;
 }
 
 static int show_config(struct perf_config_set *set)
