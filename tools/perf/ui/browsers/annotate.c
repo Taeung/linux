@@ -14,11 +14,6 @@
 #include <linux/kernel.h>
 #include <sys/ttydefaults.h>
 
-struct disasm_line_samples {
-	double		percent;
-	u64		nr;
-};
-
 #define IPC_WIDTH 6
 #define CYCLES_WIDTH 6
 
