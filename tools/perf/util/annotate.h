@@ -128,6 +128,9 @@ struct source_line {
 	struct source_line_samples samples[1];
 };
 
+void code_line__sum_samples(struct code_line *cl, struct disasm_line *dl,
+			    struct annotation *notes, struct perf_evsel *evsel);
+
 /** struct annotated_source - symbols with hits have this attached as in sannotation
  *
  * @histogram: Array of addr hit histograms per event being monitored
@@ -179,6 +182,10 @@ int hist_entry__inc_addr_samples(struct hist_entry *he, int evidx, u64 addr);
 
 int symbol__alloc_hist(struct symbol *sym);
 void symbol__annotate_zero_histograms(struct symbol *sym);
+
+int symbol__free_source_code(struct symbol *sym);
+int symbol__get_source_code(struct symbol *sym, struct map *map,
+			    struct perf_evsel *evsel);
 
 int symbol__disassemble(struct symbol *sym, struct map *map,
 			const char *arch_name, size_t privsize,

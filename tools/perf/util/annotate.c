@@ -1419,7 +1419,7 @@ static void code_lines__free(struct list_head *code_lines)
 	}
 }
 
-static int symbol__free_source_code(struct symbol *sym)
+int symbol__free_source_code(struct symbol *sym)
 {
 	struct annotation *notes = symbol__annotation(sym);
 	struct source_code *code = notes->src->code;
@@ -1433,7 +1433,7 @@ static int symbol__free_source_code(struct symbol *sym)
 	return 0;
 }
 
-static void code_line__sum_samples(struct code_line *cl, struct disasm_line *dl,
+void code_line__sum_samples(struct code_line *cl, struct disasm_line *dl,
 				   struct annotation *notes, struct perf_evsel *evsel)
 {
 	int i;
@@ -1596,7 +1596,7 @@ out:
 	return ret;
 }
 
-static int symbol__get_source_code(struct symbol *sym, struct map *map,
+int symbol__get_source_code(struct symbol *sym, struct map *map,
 				   struct perf_evsel *evsel)
 {
 	int start_linenr, end_linenr, ret = -1;
