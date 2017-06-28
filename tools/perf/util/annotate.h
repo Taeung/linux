@@ -104,6 +104,7 @@ struct code_line {
 	struct list_head    node;
 	int		    line_nr;
 	char		    *line;
+	bool		    show_asm;
 	int		    nr_matched_dl;
 	struct disasm_line  **matched_dl;
 	struct disasm_line_samples *samples_sum;

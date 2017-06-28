@@ -47,11 +47,14 @@ struct annotate_browser {
 	struct ui_browser b, cb;
 	struct rb_root	  entries;
 	struct rb_node	  *curr_hot;
+	struct code_line  *code_line_selection;
 	struct disasm_line  *selection;
 	struct disasm_line  **offsets;
 	struct arch	    *arch;
 	int		    nr_events;
 	u64		    start;
+	int		    code_line_offset;
+	int		    nr_code_entries;
 	int		    nr_asm_entries;
 	int		    nr_entries;
 	int		    max_jump_sources;
@@ -66,6 +69,8 @@ struct annotate_browser {
 	u8		    max_addr_width;
 	char		    search_bf[128];
 };
+
+static const char *help = "Press 'h' for help on key bindings";
 
 static inline struct browser_disasm_line *disasm_line__browser(struct disasm_line *dl)
 {
@@ -111,10 +116,10 @@ static int annotate_browser__pcnt_width(struct annotate_browser *ab)
 	return w;
 }
 
-static void annotate_code_browser__write(struct ui_browser *browser, void *entry, int row)
+static void annotate_code_browser__write(struct ui_browser *browser,
+					 struct code_line *cl, int row)
 {
 	struct annotate_browser *ab = container_of(browser, struct annotate_browser, cb);
-	struct code_line *cl = list_entry(entry, struct code_line, node);
 	bool current_entry = ui_browser__is_current_entry(browser, row);
 	int i, printed;
 	double percent, max_percent = 0.0;
@@ -147,11 +152,18 @@ static void annotate_code_browser__write(struct ui_browser *browser, void *entry
 
 	SLsmg_write_char(' ');
 
+	ui_browser__printf(browser, "%c ",
+			   cl->nr_matched_dl ? (cl->show_asm ? '-' : '+') : ' ');
 	printed = scnprintf(line, sizeof(line), "%-*d ",
 			    ab->addr_width + 2, cl->line_nr);
 
 	ui_browser__write_nstring(browser, line, printed);
 	ui_browser__write_nstring(browser, cl->line, browser->width);
+
+	if (current_entry) {
+		ab->code_line_selection = cl;
+		ab->code_line_offset = 0;
+	}
 }
 
 static void annotate_browser__write(struct ui_browser *browser, void *entry, int row)
@@ -348,15 +360,108 @@ static void annotate_browser__draw_current_jump(struct ui_browser *browser)
 				 from, to);
 }
 
+static int annotate_code_browser__show_matched_dl(struct ui_browser *browser,
+						   struct code_line *cl, int row)
+{
+	struct annotate_browser *ab = container_of(browser, struct annotate_browser, cb);
+	int i;
+	char line[256];
+
+	for (i = 0; i <  cl->nr_matched_dl; i++) {
+		int k;
+		bool current_entry;
+		struct disasm_line *dl = cl->matched_dl[i];
+		struct browser_disasm_line *bdl = disasm_line__browser(dl);
+
+		ui_browser__gotorc(browser, row, 0);
+		current_entry = ui_browser__is_current_entry(browser, row);
+
+		for (k = 0; k < ab->nr_events; k++) {
+			ui_browser__set_percent_color(browser, bdl->samples[k].percent,
+						      current_entry);
+			if (bdl->samples[k].percent == 0.0) {
+				ui_browser__write_nstring(browser, " ", 7);
+				continue;
+			}
+
+			if (annotate_browser__opts.show_total_period) {
+				ui_browser__printf(browser, "%6" PRIu64 " ",
+						   bdl->samples[k].nr);
+			} else {
+				ui_browser__printf(browser, "%6.2f ",
+						   bdl->samples[k].percent);
+			}
+		}
+
+		SLsmg_write_char(' ');
+
+		if (current_entry) {
+			ab->code_line_selection = cl;
+			ab->code_line_offset = i + 1;
+			ui_browser__set_percent_color(browser, 0, current_entry);
+		} else
+			ui_browser__set_color(browser, HE_COLORSET_NORMAL);
+
+		ui_browser__printf(browser, " %*s - ", ab->addr_width + 4, " ");
+
+		disasm_line__scnprintf(dl, line, sizeof(line),
+				       !annotate_browser__opts.use_offset);
+		if (!current_entry)
+			ui_browser__set_color(browser, HE_COLORSET_ASM);
+		ui_browser__write_nstring(browser, line, browser->width);
+
+		if (++row == browser->rows)
+			break;
+	}
+
+	return row;
+}
+
 static unsigned int annotate_code_browser__refresh(struct ui_browser *browser)
 {
 	struct annotate_browser *ab = container_of(browser, struct annotate_browser, cb);
-	int ret = ui_browser__list_head_refresh(browser);
-	int pcnt_width = annotate_browser__pcnt_width(ab);
+	struct list_head *pos, *head = browser->entries;
+	struct code_line *cl;
+	int row = 0, pcnt_width = annotate_browser__pcnt_width(ab);
 
+	if (browser->top == NULL)
+		browser->top = head->next;
+
+	/* Reset browser->top_idx considering folded partial disassembly lines */
+	if (browser->top_idx > 0) {
+		struct list_head *top = browser->top;
+		int top_idx = 0;
+
+		pos = head->next;
+		while (pos != top) {
+			top_idx++;
+
+			cl = list_entry(pos, struct code_line, node);
+			if (cl->show_asm)
+				top_idx += cl->nr_matched_dl;
+			pos = pos->next;
+		}
+
+		browser->top_idx = top_idx;
+	}
+
+	pos = browser->top;
+	list_for_each_from(pos, head) {
+		cl = list_entry(pos, struct code_line, node);
+
+		ui_browser__gotorc(browser, row, 0);
+		annotate_code_browser__write(browser, cl, row++);
+
+		if (cl->show_asm)
+			row = annotate_code_browser__show_matched_dl(browser, cl, row);
+
+		if (row == browser->rows)
+			break;
+	}
 	ui_browser__set_color(browser, HE_COLORSET_NORMAL);
 	__ui_browser__vline(browser, pcnt_width, 0, browser->height - 1);
-	return ret;
+	ui_helpline__puts(help);
+	return row;
 }
 
 static unsigned int annotate_browser__refresh(struct ui_browser *browser)
@@ -796,6 +901,20 @@ static void annotate_browser__update_addr_width(struct annotate_browser *browser
 		browser->addr_width += browser->jumps_width + 1;
 }
 
+static void annotate_code_browser__update_nr_entries(struct annotate_browser *browser)
+{
+	u32 nr_entries = browser->nr_code_entries;
+	struct ui_browser *cb = &browser->cb;
+	struct list_head *code_lines = cb->entries;
+	struct code_line *cl;
+
+	list_for_each_entry(cl, code_lines, node) {
+		if (cl->show_asm)
+			nr_entries += cl->nr_matched_dl;
+	}
+	ui_browser__update_nr_entries(cb, nr_entries);
+}
+
 static int annotate_code_browser__run(struct annotate_browser *browser,
 				      struct perf_evsel *evsel, int delay_secs)
 {
@@ -818,7 +937,21 @@ static int annotate_code_browser__run(struct annotate_browser *browser,
 		"UP/DOWN/PGUP\n"
 		"PGDN/SPACE    Navigate\n"
 		"q/ESC/CTRL+C  Return to dissembly view\n\n"
+		"ENTER         Toggle showing partial disassembly lines\n"
 		"t             Toggle total period view\n");
+			continue;
+		case K_ENTER:
+			if (browser->code_line_selection == NULL ||
+			    browser->code_line_selection->nr_matched_dl == 0)
+				ui_helpline__puts("No disassembly for the line");
+			else {
+				if (browser->code_line_selection->show_asm)
+					browser->cb.index -= browser->code_line_offset;
+
+				browser->code_line_selection->show_asm =
+					!browser->code_line_selection->show_asm;
+				annotate_code_browser__update_nr_entries(browser);
+			}
 			continue;
 		case 't':
 			annotate_browser__opts.show_total_period =
@@ -843,7 +976,6 @@ static int annotate_browser__run(struct annotate_browser *browser,
 	struct rb_node *nd = NULL;
 	struct map_symbol *ms = browser->b.priv;
 	struct symbol *sym = ms->sym;
-	const char *help = "Press 'h' for help on key bindings";
 	int delay_secs = hbt ? hbt->refresh : 0;
 	int key;
 	char title[SYM_TITLE_MAX_SIZE];
@@ -1251,7 +1383,6 @@ int symbol__tui_annotate(struct symbol *sym, struct map *map,
 		browser.has_src_code = true;
 		browser.cb.refresh = annotate_code_browser__refresh;
 		browser.cb.seek = ui_browser__list_head_seek;
-		browser.cb.write = annotate_code_browser__write;
 		browser.cb.use_navkeypressed = true;
 		browser.cb.entries = &code->lines;
 
@@ -1262,6 +1393,7 @@ int symbol__tui_annotate(struct symbol *sym, struct map *map,
 				browser.cb.width = line_len;
 			browser.cb.nr_entries++;
 		}
+		browser.nr_code_entries = browser.cb.nr_entries;
 	}
 
 	if (annotate_browser__opts.hide_src_code)
