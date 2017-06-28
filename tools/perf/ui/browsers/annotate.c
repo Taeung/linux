@@ -402,7 +402,17 @@ static int annotate_code_browser__show_matched_dl(struct ui_browser *browser,
 		} else
 			ui_browser__set_color(browser, HE_COLORSET_NORMAL);
 
-		ui_browser__printf(browser, " %*s - ", ab->addr_width + 4, " ");
+		if (!annotate_browser__opts.use_offset) {
+			u64 addr = dl->offset + ab->start;
+
+			ui_browser__printf(browser, " - ");
+
+			if (!current_entry)
+				ui_browser__set_color(browser, HE_COLORSET_ADDR);
+			ui_browser__printf(browser, "%" PRIx64 ": ", addr);
+		} else
+			ui_browser__printf(browser, " %*s - ",
+					   ab->addr_width + 4, " ");
 
 		disasm_line__scnprintf(dl, line, sizeof(line),
 				       !annotate_browser__opts.use_offset);
@@ -938,6 +948,7 @@ static int annotate_code_browser__run(struct annotate_browser *browser,
 		"PGDN/SPACE    Navigate\n"
 		"q/ESC/CTRL+C  Return to dissembly view\n\n"
 		"ENTER         Toggle showing partial disassembly lines\n"
+		"o             Toggle showing addresses for disassembly lines\n"
 		"t             Toggle total period view\n");
 			continue;
 		case K_ENTER:
@@ -952,6 +963,10 @@ static int annotate_code_browser__run(struct annotate_browser *browser,
 					!browser->code_line_selection->show_asm;
 				annotate_code_browser__update_nr_entries(browser);
 			}
+			continue;
+		case 'o':
+			annotate_browser__opts.use_offset =
+				!annotate_browser__opts.use_offset;
 			continue;
 		case 't':
 			annotate_browser__opts.show_total_period =
