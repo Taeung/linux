@@ -113,13 +113,14 @@ static int hist_iter__report_callback(struct hist_entry_iter *iter,
 	struct report *rep = arg;
 	struct hist_entry *he = iter->he;
 	struct perf_evsel *evsel = iter->evsel;
+	struct perf_sample *sample = iter->sample;
 	struct mem_info *mi;
 	struct branch_info *bi;
 
 	if (!ui__has_annotation())
 		return 0;
 
-	hist__account_cycles(iter->sample->branch_stack, al, iter->sample,
+	hist__account_cycles(sample->branch_stack, al, sample,
 			     rep->nonany_branch_mode);
 
 	if (sort__mode == SORT_MODE__BRANCH) {
@@ -136,14 +137,16 @@ static int hist_iter__report_callback(struct hist_entry_iter *iter,
 		if (err)
 			goto out;
 
-		err = hist_entry__inc_addr_samples(he, evsel->idx, al->addr);
+		err = hist_entry__inc_addr_samples(he, sample,
+						   evsel->idx, al->addr);
 
 	} else if (symbol_conf.cumulate_callchain) {
 		if (single)
-			err = hist_entry__inc_addr_samples(he, evsel->idx,
-							   al->addr);
+			err = hist_entry__inc_addr_samples(he, sample,
+							   evsel->idx, al->addr);
 	} else {
-		err = hist_entry__inc_addr_samples(he, evsel->idx, al->addr);
+		err = hist_entry__inc_addr_samples(he, sample,
+						   evsel->idx, al->addr);
 	}
 
 out:

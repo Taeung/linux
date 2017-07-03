@@ -79,11 +79,16 @@ struct disasm_line *disasm__get_next_ip_line(struct list_head *head, struct disa
 int disasm_line__scnprintf(struct disasm_line *dl, char *bf, size_t size, bool raw);
 size_t disasm__fprintf(struct list_head *head, FILE *fp);
 double disasm__calc_percent(struct annotation *notes, int evidx, s64 offset,
-			    s64 end, const char **path, u64 *nr_samples);
+			    s64 end, const char **path, u64 *nr_samples, u64 *period);
+struct sym_sample {
+	u64		nr_samples;
+	u64		period;
+};
 
 struct sym_hist {
 	u64		sum;
-	u64		addr[0];
+	u64		total_period;
+	struct sym_sample addr[0];
 };
 
 struct cyc_hist {
@@ -155,7 +160,8 @@ int addr_map_symbol__account_cycles(struct addr_map_symbol *ams,
 				    struct addr_map_symbol *start,
 				    unsigned cycles);
 
-int hist_entry__inc_addr_samples(struct hist_entry *he, int evidx, u64 addr);
+int hist_entry__inc_addr_samples(struct hist_entry *he, struct perf_sample *sample,
+				 int evidx, u64 addr);
 
 int symbol__alloc_hist(struct symbol *sym);
 void symbol__annotate_zero_histograms(struct symbol *sym);
