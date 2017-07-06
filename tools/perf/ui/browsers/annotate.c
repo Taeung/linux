@@ -18,6 +18,7 @@
 struct disasm_line_samples {
 	double		percent;
 	u64		nr;
+	u64		period;
 };
 
 #define IPC_WIDTH 6
@@ -113,6 +114,10 @@ static int annotate_browser__pcnt_width(struct annotate_browser *ab)
 
 	if (ab->have_cycles)
 		w += IPC_WIDTH + CYCLES_WIDTH;
+
+	if (annotate_browser__opts.show_total_period)
+		w += 4 * ab->nr_events;
+
 	return w;
 }
 
@@ -150,8 +155,8 @@ static void annotate_browser__write(struct ui_browser *browser, void *entry, int
 						bdl->samples[i].percent,
 						current_entry);
 			if (annotate_browser__opts.show_total_period) {
-				ui_browser__printf(browser, "%6" PRIu64 " ",
-						   bdl->samples[i].nr);
+				ui_browser__printf(browser, "%10" PRIu64 " ",
+						   bdl->samples[i].period);
 			} else {
 				ui_browser__printf(browser, "%6.2f ",
 						   bdl->samples[i].percent);
@@ -161,9 +166,13 @@ static void annotate_browser__write(struct ui_browser *browser, void *entry, int
 		ui_browser__set_percent_color(browser, 0, current_entry);
 
 		if (!show_title)
-			ui_browser__write_nstring(browser, " ", 7 * ab->nr_events);
-		else
-			ui_browser__printf(browser, "%*s", 7, "Percent");
+			ui_browser__write_nstring(browser, " ", pcnt_width);
+		else {
+			if (annotate_browser__opts.show_total_period)
+				ui_browser__printf(browser, "%*s", 11, "Event count");
+			else
+				ui_browser__printf(browser, "%*s", 7, "Percent");
+		}
 	}
 	if (ab->have_cycles) {
 		if (dl->ipc)
@@ -457,6 +466,7 @@ static void annotate_browser__calc_percent(struct annotate_browser *browser,
 						next ? next->offset : len,
 						&path, &nr_samples, &period);
 			bpos->samples[i].nr = nr_samples;
+			bpos->samples[i].period = period;
 
 			if (max_percent < bpos->samples[i].percent)
 				max_percent = bpos->samples[i].percent;
