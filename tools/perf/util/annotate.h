@@ -86,7 +86,7 @@ struct sym_sample {
 };
 
 struct sym_hist {
-	u64		sum;
+	u64		nr_samples;
 	u64		total_period;
 	struct sym_sample addr[0];
 };

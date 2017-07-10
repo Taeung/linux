@@ -713,7 +713,7 @@ static int __symbol__inc_addr_samples(struct symbol *sym, struct map *map,
 
 	offset = addr - sym->start;
 	h = annotation__histogram(notes, evidx);
-	h->sum++;
+	h->nr_samples++;
 	h->addr[offset].nr_samples++;
 
 	pr_debug3("%#" PRIx64 " %s: period++ [addr: %#" PRIx64 ", %#" PRIx64
@@ -837,7 +837,7 @@ int hist_entry__inc_addr_samples(struct hist_entry *he, struct perf_sample *samp
 
 	offset = addr - sym->start;
 	h = annotation__histogram(notes, evidx);
-	h->sum++;
+	h->nr_samples++;
 	h->addr[offset].nr_samples++;
 	h->total_period += sample->period;
 	h->addr[offset].period += sample->period;
@@ -985,10 +985,10 @@ double disasm__calc_percent(struct annotation *notes, int evidx, s64 offset,
 			p += h->addr[offset++].period;
 		}
 
-		if (h->sum) {
+		if (h->nr_samples) {
 			*nr_samples = hits;
 			*period = p;
-			percent = 100.0 * hits / h->sum;
+			percent = 100.0 * hits / h->nr_samples;
 		}
 	}
 
@@ -1165,6 +1165,9 @@ static int disasm_line__print(struct disasm_line *dl, struct symbol *sym, u64 st
 			if (symbol_conf.show_total_period)
 				color_fprintf(stdout, color, " %11" PRIu64,
 					      period);
+			else if (symbol_conf.show_nr_samples)
+				color_fprintf(stdout, color, " %7" PRIu64,
+					      nr_samples);
 			else
 				color_fprintf(stdout, color, " %7.2f", percent);
 		}
@@ -1711,13 +1714,13 @@ static int symbol__get_source_line(struct symbol *sym, struct map *map,
 	struct sym_hist *h = annotation__histogram(notes, evidx);
 	struct rb_root tmp_root = RB_ROOT;
 	int nr_pcnt = 1;
-	u64 h_sum = h->sum;
+	u64 h_sum = h->nr_samples;
 	size_t sizeof_src_line = sizeof(struct source_line);
 
 	if (perf_evsel__is_group_event(evsel)) {
 		for (i = 1; i < evsel->nr_members; i++) {
 			h = annotation__histogram(notes, evidx + i);
-			h_sum += h->sum;
+			h_sum += h->nr_samples;
 		}
 		nr_pcnt = evsel->nr_members;
 		sizeof_src_line += (nr_pcnt - 1) * sizeof(src_line->samples);
@@ -1743,8 +1746,8 @@ static int symbol__get_source_line(struct symbol *sym, struct map *map,
 
 			h = annotation__histogram(notes, evidx + k);
 			nr_samples = h->addr[i].nr_samples;
-			if (h->sum)
-				percent = 100.0 * nr_samples / h->sum;
+			if (h->nr_samples)
+				percent = 100.0 * nr_samples / h->nr_samples;
 
 			if (percent > percent_max)
 				percent_max = percent;
@@ -1816,7 +1819,7 @@ static void symbol__annotate_hits(struct symbol *sym, struct perf_evsel *evsel)
 		if (h->addr[offset].nr_samples != 0)
 			printf("%*" PRIx64 ": %" PRIu64 "\n", BITS_PER_LONG / 2,
 			       sym->start + offset, h->addr[offset].nr_samples);
-	printf("%*s: %" PRIu64 "\n", BITS_PER_LONG / 2, "h->sum", h->sum);
+	printf("%*s: %" PRIu64 "\n", BITS_PER_LONG / 2, "h->nr_samples", h->nr_samples);
 }
 
 int symbol__annotate_printf(struct symbol *sym, struct map *map,
@@ -1857,9 +1860,10 @@ int symbol__annotate_printf(struct symbol *sym, struct map *map,
 
 	graph_dotted_len = printf(" %-*.*s|	Source code & Disassembly of %s for %s (%" PRIu64 " %s)\n",
 				  width, width,
-				  symbol_conf.show_total_period ? "Event count" : "Percent",
+				  symbol_conf.show_total_period ? "Event count" :
+				  symbol_conf.show_nr_samples ? "Samples" : "Percent",
 				  d_filename, evsel_name,
-				  symbol_conf.show_total_period ? h->total_period : h->sum,
+				  symbol_conf.show_total_period ? h->total_period : h->nr_samples,
 				  symbol_conf.show_total_period ? "event count" : "samples");
 
 	printf("%-*.*s----\n",
@@ -1924,10 +1928,10 @@ void symbol__annotate_decay_histogram(struct symbol *sym, int evidx)
 	struct sym_hist *h = annotation__histogram(notes, evidx);
 	int len = symbol__size(sym), offset;
 
-	h->sum = 0;
+	h->nr_samples = 0;
 	for (offset = 0; offset < len; ++offset) {
 		h->addr[offset].nr_samples = h->addr[offset].nr_samples * 7 / 8;
-		h->sum += h->addr[offset].nr_samples;
+		h->nr_samples += h->addr[offset].nr_samples;
 	}
 }
 
