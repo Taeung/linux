@@ -42,6 +42,7 @@ static struct annotate_browser_opt {
 	     jump_arrows,
 	     show_linenr,
 	     show_nr_jumps,
+	     show_nr_samples,
 	     show_total_period;
 } annotate_browser__opts = {
 	.use_offset	= true,
@@ -157,6 +158,9 @@ static void annotate_browser__write(struct ui_browser *browser, void *entry, int
 			if (annotate_browser__opts.show_total_period) {
 				ui_browser__printf(browser, "%10" PRIu64 " ",
 						   bdl->samples[i].period);
+			} else if (annotate_browser__opts.show_nr_samples) {
+				ui_browser__printf(browser, "%6" PRIu64 " ",
+						   bdl->samples[i].nr);
 			} else {
 				ui_browser__printf(browser, "%6.2f ",
 						   bdl->samples[i].percent);
@@ -170,6 +174,8 @@ static void annotate_browser__write(struct ui_browser *browser, void *entry, int
 		else {
 			if (annotate_browser__opts.show_total_period)
 				ui_browser__printf(browser, "%*s", 11, "Event count");
+			else if (annotate_browser__opts.show_nr_samples)
+				ui_browser__printf(browser, "%*s", 7, "Samples");
 			else
 				ui_browser__printf(browser, "%*s", 7, "Percent");
 		}
@@ -836,6 +842,7 @@ static int annotate_browser__run(struct annotate_browser *browser,
 		"o             Toggle disassembler output/simplified view\n"
 		"s             Toggle source code view\n"
 		"t             Toggle total period view\n"
+		"e             Toggle number of samples\n"
 		"/             Search string\n"
 		"k             Toggle line numbers\n"
 		"r             Run available scripts\n"
@@ -916,6 +923,11 @@ show_sup_ins:
 			  !annotate_browser__opts.show_total_period;
 			annotate_browser__update_addr_width(browser);
 			continue;
+		case 'e':
+			annotate_browser__opts.show_nr_samples =
+				!annotate_browser__opts.show_nr_samples;
+			annotate_browser__update_addr_width(browser);
+			continue;
 		case K_LEFT:
 		case K_ESC:
 		case 'q':
@@ -936,9 +948,11 @@ out:
 int map_symbol__tui_annotate(struct map_symbol *ms, struct perf_evsel *evsel,
 			     struct hist_browser_timer *hbt)
 {
-	/* Set default value for show_total_period.  */
+	/* Set default value for show_total_period and show_nr_samples  */
 	annotate_browser__opts.show_total_period =
 	  symbol_conf.show_total_period;
+	annotate_browser__opts.show_nr_samples =
+		symbol_conf.show_nr_samples;
 
 	return symbol__tui_annotate(ms->sym, ms->map, evsel, hbt);
 }
@@ -1189,6 +1203,7 @@ static struct annotate_config {
 	ANNOTATE_CFG(jump_arrows),
 	ANNOTATE_CFG(show_linenr),
 	ANNOTATE_CFG(show_nr_jumps),
+	ANNOTATE_CFG(show_nr_samples),
 	ANNOTATE_CFG(show_total_period),
 	ANNOTATE_CFG(use_offset),
 };
