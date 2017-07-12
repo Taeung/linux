@@ -58,6 +58,11 @@ bool ins__is_fused(struct arch *arch, const char *ins1, const char *ins2);
 
 struct annotation;
 
+struct disasm_line_samples {
+	double		percent;
+	u64		nr;
+};
+
 struct disasm_line {
 	struct list_head    node;
 	s64		    offset;
@@ -103,6 +108,21 @@ struct cyc_hist {
 	u16	reset;
 };
 
+struct code_line {
+	struct list_head    node;
+	int		    line_nr;
+	char		    *line;
+	int		    nr_matched_dl;
+	struct disasm_line  **matched_dl;
+	struct disasm_line_samples *samples_sum;
+};
+
+struct source_code {
+	char		 *path;
+	int		 nr_events;
+	struct list_head lines;
+};
+
 struct source_line_samples {
 	double		percent;
 	double		percent_sum;
@@ -131,7 +151,9 @@ struct source_line {
  */
 struct annotated_source {
 	struct list_head   source;
+	struct source_code *code;
 	struct source_line *lines;
+	bool		   has_src_code;
 	int    		   nr_histograms;
 	size_t		   sizeof_sym_hist;
 	struct cyc_hist	   *cycles_hist;

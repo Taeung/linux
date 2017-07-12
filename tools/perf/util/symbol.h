@@ -109,6 +109,7 @@ struct symbol_conf {
 			kptr_restrict,
 			annotate_asm_raw,
 			annotate_src,
+			annotate_src_only,
 			event_group,
 			demangle,
 			demangle_kernel,
