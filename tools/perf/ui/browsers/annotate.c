@@ -143,7 +143,12 @@ static void annotate_code_browser__write(struct ui_browser *browser, void *entry
 
 		percent = cl->samples_sum[i].percent;
 		ui_browser__set_percent_color(browser, percent, current_entry);
-		ui_browser__printf(browser, "%6.2f ", percent);
+
+		if (annotate_browser__opts.show_total_period)
+			ui_browser__printf(browser, "%6" PRIu64 " ",
+					   cl->samples_sum[i].nr);
+		else
+			ui_browser__printf(browser, "%6.2f ", percent);
 
 		if (max_percent < percent)
 			max_percent = percent;
@@ -854,7 +859,12 @@ static int annotate_code_browser__run(struct annotate_browser *browser,
 			ui_browser__help_window(&browser->cb,
 		"UP/DOWN/PGUP\n"
 		"PGDN/SPACE    Navigate\n"
-		"q/ESC/CTRL+C  Return to dissembly view\n\n");
+		"q/ESC/CTRL+C  Return to dissembly view\n\n"
+		"t             Toggle total period view\n");
+			continue;
+		case 't':
+			annotate_browser__opts.show_total_period =
+				!annotate_browser__opts.show_total_period;
 			continue;
 		case K_LEFT:
 		case K_ESC:
