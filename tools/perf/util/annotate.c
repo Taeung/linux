@@ -1850,7 +1850,9 @@ int symbol__annotate_printf(struct symbol *sym, struct map *map,
 			4 * evsel->nr_members : 4;
 
 	graph_dotted_len = printf(" %-*.*s|	Source code & Disassembly of %s for %s (%" PRIu64 " %s)\n",
-				  width, width, "Percent", d_filename, evsel_name,
+				  width, width,
+				  symbol_conf.show_total_period ? "Event count" : "Percent",
+				  d_filename, evsel_name,
 				  symbol_conf.show_total_period ? h->total_period : h->total_samples,
 				  symbol_conf.show_total_period ? "event count" : "samples");
 
