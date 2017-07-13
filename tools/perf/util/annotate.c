@@ -816,9 +816,33 @@ int addr_map_symbol__inc_samples(struct addr_map_symbol *ams, int evidx)
 	return symbol__inc_addr_samples(ams->sym, ams->map, evidx, ams->al_addr);
 }
 
-int hist_entry__inc_addr_samples(struct hist_entry *he, int evidx, u64 ip)
+int hist_entry__inc_addr_samples(struct hist_entry *he, struct perf_sample *sample,
+				 int evidx, u64 addr)
 {
-	return symbol__inc_addr_samples(he->ms.sym, he->ms.map, evidx, ip);
+	struct symbol *sym = he->ms.sym;
+	struct annotation *notes;
+	struct sym_hist *h;
+	s64 offset;
+
+	if (sym == NULL)
+		return 0;
+
+	notes = symbol__get_annotation(sym, false);
+	if (notes == NULL)
+		return -ENOMEM;
+
+	if ((addr < sym->start || addr >= sym->end) &&
+	    (addr != sym->end || sym->start != sym->end))
+		return -ERANGE;
+
+	offset = addr - sym->start;
+	h = annotation__histogram(notes, evidx);
+	h->total_samples++;
+	h->addr[offset].nr_samples++;
+	h->total_period += sample->period;
+	h->addr[offset].period += sample->period;
+
+	return 0;
 }
 
 static void disasm_line__init_ins(struct disasm_line *dl, struct arch *arch, struct map *map)
@@ -934,6 +958,7 @@ double disasm__calc_percent(struct annotation *notes, int evidx, s64 offset,
 	double percent = 0.0;
 
 	sample->nr_samples = 0;
+	sample->period = 0;
 
 	if (src_line) {
 		size_t sizeof_src_line = sizeof(*src_line) +
@@ -953,12 +978,16 @@ double disasm__calc_percent(struct annotation *notes, int evidx, s64 offset,
 	} else {
 		struct sym_hist *h = annotation__histogram(notes, evidx);
 		unsigned int hits = 0;
+		unsigned int p = 0;
 
-		while (offset < end)
-			hits += h->addr[offset++].nr_samples;
+		while (offset < end) {
+			hits += h->addr[offset].nr_samples;
+			p += h->addr[offset++].period;
+		}
 
 		if (h->total_samples) {
 			sample->nr_samples = hits;
+			sample->period = p;
 			percent = 100.0 * hits / h->total_samples;
 		}
 	}
@@ -1131,8 +1160,8 @@ static int disasm_line__print(struct disasm_line *dl, struct symbol *sym, u64 st
 			color = get_percent_color(percent);
 
 			if (symbol_conf.show_total_period)
-				color_fprintf(stdout, color, " %7" PRIu64,
-					      sample.nr_samples);
+				color_fprintf(stdout, color, " %11" PRIu64,
+					      sample.period);
 			else
 				color_fprintf(stdout, color, " %7.2f", percent);
 		}
@@ -1161,6 +1190,10 @@ static int disasm_line__print(struct disasm_line *dl, struct symbol *sym, u64 st
 
 		if (perf_evsel__is_group_event(evsel))
 			width *= evsel->nr_members;
+
+		if (symbol_conf.show_total_period)
+			width += perf_evsel__is_group_event(evsel) ?
+				4 * evsel->nr_members : 4;
 
 		if (!*dl->line)
 			printf(" %*s:\n", width, " ");
@@ -1704,6 +1737,7 @@ static int symbol__get_source_line(struct symbol *sym, struct map *map,
 
 			h = annotation__histogram(notes, evidx + k);
 			nr_samples = h->addr[i].nr_samples;
+
 			if (h->total_samples)
 				percent = 100.0 * nr_samples / h->total_samples;
 
@@ -1777,6 +1811,7 @@ static void symbol__annotate_hits(struct symbol *sym, struct perf_evsel *evsel)
 		if (h->addr[offset].nr_samples != 0)
 			printf("%*" PRIx64 ": %" PRIu64 "\n", BITS_PER_LONG / 2,
 			       sym->start + offset, h->addr[offset].nr_samples);
+
 	printf("%*s: %" PRIu64 "\n", BITS_PER_LONG / 2, "h->total_samples", h->total_samples);
 }
 
@@ -1812,8 +1847,14 @@ int symbol__annotate_printf(struct symbol *sym, struct map *map,
 	if (perf_evsel__is_group_event(evsel))
 		width *= evsel->nr_members;
 
-	graph_dotted_len = printf(" %-*.*s|	Source code & Disassembly of %s for %s (%" PRIu64 " samples)\n",
-	       width, width, "Percent", d_filename, evsel_name, h->total_samples);
+	if (symbol_conf.show_total_period)
+		width += perf_evsel__is_group_event(evsel) ?
+			4 * evsel->nr_members : 4;
+
+	graph_dotted_len = printf(" %-*.*s|	Source code & Disassembly of %s for %s (%" PRIu64 " %s)\n",
+				  width, width, "Percent", d_filename, evsel_name,
+				  symbol_conf.show_total_period ? h->total_period : h->total_samples,
+				  symbol_conf.show_total_period ? "event count" : "samples");
 
 	printf("%-*.*s----\n",
 	       graph_dotted_len, graph_dotted_len, graph_dotted_line);

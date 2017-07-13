@@ -177,14 +177,12 @@ static int perf_evsel__add_sample(struct perf_evsel *evsel,
 	 */
 	process_branch_stack(sample->branch_stack, al, sample);
 
-	sample->period = 1;
 	sample->weight = 1;
-
 	he = hists__add_entry(hists, al, NULL, NULL, NULL, sample, true);
 	if (he == NULL)
 		return -ENOMEM;
 
-	ret = hist_entry__inc_addr_samples(he, evsel->idx, al->addr);
+	ret = hist_entry__inc_addr_samples(he, sample, evsel->idx, al->addr);
 	hists__inc_nr_samples(hists, true);
 	return ret;
 }
