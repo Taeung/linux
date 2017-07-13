@@ -1144,6 +1144,9 @@ static int disasm_line__print(struct disasm_line *dl, struct symbol *sym, u64 st
 			if (symbol_conf.show_total_period)
 				color_fprintf(stdout, color, " %11" PRIu64,
 					      sample.period);
+			else if (symbol_conf.show_nr_samples)
+				color_fprintf(stdout, color, " %7" PRIu64,
+					      sample.nr_samples);
 			else
 				color_fprintf(stdout, color, " %7.2f", percent);
 		}
@@ -1833,7 +1836,8 @@ int symbol__annotate_printf(struct symbol *sym, struct map *map,
 
 	graph_dotted_len = printf(" %-*.*s|	Source code & Disassembly of %s for %s (%" PRIu64 " samples)\n",
 				  width, width,
-				  symbol_conf.show_total_period ? "Event count" : "Percent",
+				  symbol_conf.show_total_period ? "Event count" :
+				  symbol_conf.show_nr_samples ? "Samples" : "Percent",
 				  d_filename, evsel_name, h->nr_samples);
 
 	printf("%-*.*s----\n",
