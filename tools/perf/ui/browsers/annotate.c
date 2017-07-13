@@ -18,7 +18,7 @@
 
 struct disasm_line_samples {
 	double		percent;
-	u64		nr;
+	struct sym_hist_entry sample;
 };
 
 #define IPC_WIDTH 6
@@ -114,6 +114,10 @@ static int annotate_browser__pcnt_width(struct annotate_browser *ab)
 
 	if (ab->have_cycles)
 		w += IPC_WIDTH + CYCLES_WIDTH;
+
+	if (annotate_browser__opts.show_total_period)
+		w += 4 * ab->nr_events;
+
 	return w;
 }
 
@@ -151,8 +155,8 @@ static void annotate_browser__write(struct ui_browser *browser, void *entry, int
 						bdl->samples[i].percent,
 						current_entry);
 			if (annotate_browser__opts.show_total_period) {
-				ui_browser__printf(browser, "%6" PRIu64 " ",
-						   bdl->samples[i].nr);
+				ui_browser__printf(browser, "%10" PRIu64 " ",
+						   bdl->samples[i].sample.period);
 			} else {
 				ui_browser__printf(browser, "%6.2f ",
 						   bdl->samples[i].percent);
@@ -162,7 +166,7 @@ static void annotate_browser__write(struct ui_browser *browser, void *entry, int
 		ui_browser__set_percent_color(browser, 0, current_entry);
 
 		if (!show_title)
-			ui_browser__write_nstring(browser, " ", 7 * ab->nr_events);
+			ui_browser__write_nstring(browser, " ", pcnt_width);
 		else
 			ui_browser__printf(browser, "%*s", 7, "Percent");
 	}
@@ -457,7 +461,7 @@ static void annotate_browser__calc_percent(struct annotate_browser *browser,
 						pos->offset,
 						next ? next->offset : len,
 						&path, &sample);
-			bpos->samples[i].nr = sample.nr_samples;
+			bpos->samples[i].sample = sample;
 
 			if (max_percent < bpos->samples[i].percent)
 				max_percent = bpos->samples[i].percent;
