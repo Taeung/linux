@@ -985,10 +985,14 @@ double disasm__calc_percent(struct annotation *notes, int evidx, s64 offset,
 			p += h->addr[offset++].period;
 		}
 
-		if (h->total_samples) {
+		if (h->total_period) {
 			sample->nr_samples = hits;
 			sample->period = p;
-			percent = 100.0 * hits / h->total_samples;
+
+			if (symbol_conf.show_nr_samples)
+				percent = 100.0 * hits / h->total_samples;
+			else
+				percent = 100.0 * p / h->total_period;
 		}
 	}
 
@@ -1730,8 +1734,9 @@ static int symbol__get_source_line(struct symbol *sym, struct map *map,
 	start = map__rip_2objdump(map, sym->start);
 
 	for (i = 0; i < len; i++) {
-		u64 offset, nr_samples;
+		u64 offset;
 		double percent_max = 0.0;
+		struct sym_hist_entry sample;
 
 		src_line->nr_pcnt = nr_pcnt;
 
@@ -1739,14 +1744,18 @@ static int symbol__get_source_line(struct symbol *sym, struct map *map,
 			double percent = 0.0;
 
 			h = annotation__histogram(notes, evidx + k);
-			nr_samples = h->addr[i].nr_samples;
-			if (h->total_samples)
-				percent = 100.0 * nr_samples / h->total_samples;
+			sample = h->addr[i];
+			if (h->total_period) {
+				if (symbol_conf.show_nr_samples)
+					percent = 100.0 * sample.nr_samples / h->total_samples;
+				else
+					percent = 100.0 * sample.period / h->total_period;
+			}
 
 			if (percent > percent_max)
 				percent_max = percent;
 			src_line->samples[k].percent = percent;
-			src_line->samples[k].nr = nr_samples;
+			src_line->samples[k].nr = sample.nr_samples;
 		}
 
 		if (percent_max <= 0.5)
