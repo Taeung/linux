@@ -878,6 +878,9 @@ int main(int argc, char *argv[])
 	if (rc && verbose) {
 		pr_info("%s: Error walking file tree %s\n", prog, ldirname);
 		goto empty_map;
+	} else if (rc < 0) {
+		/* Make build fail */
+		return 1;
 	} else if (rc) {
 		goto empty_map;
 	}
@@ -892,7 +895,8 @@ int main(int argc, char *argv[])
 
 	if (process_mapfile(eventsfp, mapfile)) {
 		pr_info("%s: Error processing mapfile %s\n", prog, mapfile);
-		goto empty_map;
+		/* Make build fail */
+		return 1;
 	}
 
 	return 0;
