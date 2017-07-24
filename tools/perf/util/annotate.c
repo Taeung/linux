@@ -1142,7 +1142,7 @@ static int disasm_line__print(struct disasm_line *dl, struct symbol *sym, u64 st
 			color = get_percent_color(percent);
 
 			if (symbol_conf.show_total_period)
-				color_fprintf(stdout, color, " %7" PRIu64,
+				color_fprintf(stdout, color, " %11" PRIu64,
 					      sample.period);
 			else
 				color_fprintf(stdout, color, " %7.2f", percent);
@@ -1172,6 +1172,10 @@ static int disasm_line__print(struct disasm_line *dl, struct symbol *sym, u64 st
 
 		if (perf_evsel__is_group_event(evsel))
 			width *= evsel->nr_members;
+
+		if (symbol_conf.show_total_period)
+			width += perf_evsel__is_group_event(evsel) ?
+				4 * evsel->nr_members : 4;
 
 		if (!*dl->line)
 			printf(" %*s:\n", width, " ");
@@ -1823,8 +1827,14 @@ int symbol__annotate_printf(struct symbol *sym, struct map *map,
 	if (perf_evsel__is_group_event(evsel))
 		width *= evsel->nr_members;
 
+	if (symbol_conf.show_total_period)
+		width += perf_evsel__is_group_event(evsel) ?
+			4 * evsel->nr_members : 4;
+
 	graph_dotted_len = printf(" %-*.*s|	Source code & Disassembly of %s for %s (%" PRIu64 " samples)\n",
-	       width, width, "Percent", d_filename, evsel_name, h->nr_samples);
+				  width, width,
+				  symbol_conf.show_total_period ? "Event count" : "Percent",
+				  d_filename, evsel_name, h->nr_samples);
 
 	printf("%-*.*s----\n",
 	       graph_dotted_len, graph_dotted_len, graph_dotted_line);
