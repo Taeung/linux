@@ -403,7 +403,7 @@ int cmd_annotate(int argc, const char **argv)
 	struct perf_data_file file = {
 		.mode  = PERF_DATA_MODE_READ,
 	};
-	const struct option options[] = {
+	struct option options[] = {
 	OPT_STRING('i', "input", &input_name, "file",
 		    "input file name"),
 	OPT_STRING('d', "dsos", &symbol_conf.dso_list_str, "dso[,dso...]",
@@ -452,8 +452,12 @@ int cmd_annotate(int argc, const char **argv)
 			     stdio__config_color, "always"),
 	OPT_END()
 	};
-	int ret = hists__init();
+	int ret;
 
+	set_option_flag(options, 0, "show-total-period", PARSE_OPT_EXCLUSIVE);
+	set_option_flag(options, 0, "show-nr-samples", PARSE_OPT_EXCLUSIVE);
+
+	ret = hists__init();
 	if (ret < 0)
 		return ret;
 
